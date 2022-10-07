@@ -7,6 +7,8 @@ L4DIR		?= $(PKGDIR)/../..
 # Required for $(SRC_DIR).
 include $(L4DIR)/mk/Makeconf
 
+# Effectively sets the destination subdirectory in the assets folder.
+# Only "dtb" would have some special meaning.
 ASSET_TYPE = ycsb
 # The list of assets to copy.
 INSTALL_TARGET = workloada.spec workloadb.spec workloadc.spec workloadd.spec \
