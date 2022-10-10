@@ -29,6 +29,8 @@ class SqliteLibDB : public DB {
          */
         SqliteLibDB(const std::string &filename = std::string(":memory:"));
 
+        void Init() override;
+
         int Read(const std::string &table, const std::string &key,
                  const std::vector<std::string> *fields,
                  std::vector<KVPair> &result);
@@ -46,7 +48,10 @@ class SqliteLibDB : public DB {
         int Delete(const std::string &table, const std::string &key);
 
     private:
-        sqlite3 *database;                  // DB that we are working with
+        // Filename of the DB
+        const std::string &filename;
+        // DB that we are working with
+        sqlite3 *database;
 
         // Vector for quick lookup on which tables have already been created
         std::set<std::string> table_names;

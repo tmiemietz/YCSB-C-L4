@@ -19,17 +19,31 @@ using std::vector;
 namespace ycsbc {
 
 /* Default constructor for the library version of sqlite                      */
-SqliteLibDB::SqliteLibDB(const string &filename) {
+SqliteLibDB::SqliteLibDB(const string &filename): filename{filename} {}
+
+/* Initialize the database connection for this thread. */
+void SqliteLibDB::Init() {
     int rc = -1;                    // Return code for DB operations
 
     // Init auxiliary structures
     table_names = std::set<std::string>();
 
+    const char *filename_cstr = filename.c_str();
+    // We want multi-threaded mode (SQLITE_OPEN_NOMUTEX).
+    int flags =
+        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
+    // We need cache=shared to share an in-memory DB among multiple threads.
+    if (filename == ":memory:") {
+        filename_cstr = "file::memory:?cache=shared";
+        flags |= SQLITE_OPEN_URI;
+    }
+
     // Open a new database
-    rc = sqlite3_open(filename.c_str(), &database);
+    // TODO: Use a separate database pointer for each thread.
+    rc = sqlite3_open_v2(filename_cstr, &database, flags, nullptr);
     if (rc != SQLITE_OK) {
         std::cerr << "Cannot open sqlite database " << filename << ": "
-                  << sqlite3_errmsg(database) << std::endl;;
+                  << sqlite3_errmsg(database) << std::endl;
         sqlite3_close(database);
 
         throw std::runtime_error("Failed to open database.");
