@@ -15,8 +15,6 @@
 
 #include <string>
 #include <vector>
-#include <set>
-#include <mutex>
 
 namespace ycsbc {
 
@@ -27,7 +25,8 @@ class SqliteLibDB : public DB {
          * benchmark database. By default, the in-memory implementation of
          * sqlite is used.
          */
-        SqliteLibDB(const std::string &filename = std::string(":memory:"));
+        SqliteLibDB(const std::string &filename = std::string(":memory:"),
+                    size_t db_col_cnt = 10);
 
         void Init() override;
 
@@ -53,29 +52,20 @@ class SqliteLibDB : public DB {
         // DB that we are working with
         sqlite3 *database;
 
-        // Vector for quick lookup on which tables have already been created
-        std::set<std::string> table_names;
-        // Mutex for guarding the table creation process. We should only have
-        // to lock operations that concern the table_names set, which should
-        // only be the case during insert operations. For all other cases, 
-        // sqlite should do the proper concurrency control itself, given that
-        // we compiled it in serialized mode. Hence, we only have to make sure
-        // not to share transaction specific state between multiple threads.
-        // Also, keep in mind that we deliberately accept queries to 
-        // non-existing tables during all operations but insertions and return
-        // a no-record error in this case.
-        std::mutex table_lock;
+        // Number of data columns used in the benchmark table, defaults to
+        // 10 (set in the constructor)
+        size_t ycsbc_num_cols;
 
         /*********************************************************************
          *
          * Creates a new table named <name>.
          *
-         * The schema of newly create tables is as follows:
-         *      - YCSBC_KEY (VARCHAR(64), primary key of table)
-         *      - YCSBC_TAG (VARCHAR(64), key component of KV pairs returned)
-         *      - YCSBC_VAL (VARCHAR(64), value component of KV pairs returned)
+         * The schema of newly created tables is as follows:
+         *      - one column named YCSBC_KEY (VARCHAR, primary key of table)
+         *      - cols times TEXT columns, named from FIELD0 to 
+         *        FIELD<cols - 1>
          */
-        int CreateTable(const std::string &name);
+        int CreateTable(const std::string &name, size_t cols);
 
 
         /* Sqlite callback for adding a result to a result vector             */

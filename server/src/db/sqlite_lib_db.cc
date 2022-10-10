@@ -19,14 +19,12 @@ using std::vector;
 namespace ycsbc {
 
 /* Default constructor for the library version of sqlite                      */
-SqliteLibDB::SqliteLibDB(const string &filename): filename{filename} {}
+SqliteLibDB::SqliteLibDB(const string &filename, size_t db_col_cnt): 
+    filename{filename}, ycsbc_num_cols(db_col_cnt) {}
 
 /* Initialize the database connection for this thread. */
 void SqliteLibDB::Init() {
     int rc = -1;                    // Return code for DB operations
-
-    // Init auxiliary structures
-    table_names = std::set<std::string>();
 
     const char *filename_cstr = filename.c_str();
     // We want multi-threaded mode (SQLITE_OPEN_NOMUTEX).
@@ -49,7 +47,7 @@ void SqliteLibDB::Init() {
         throw std::runtime_error("Failed to open database.");
     }
 
-    // TODO: Turn on write-ahead logging
+    // TODO: Configure journaling (memory vs. off)
 
 }
 
@@ -70,17 +68,22 @@ int SqliteLibDB::SqliteVecAddCallback(void *kvvec, int cnt,
 }
 
 /* Creates a new table, for the schema definition see the header of this class*/
-int SqliteLibDB::CreateTable(const string &name) {
+int SqliteLibDB::CreateTable(const string &name, size_t cols) {
     int rc = -1;                    // Return code for DB operations
 
     char *err_msg = NULL;           // Error message returned from sqlite
 
     // Assemble an SQL table creation command
     string create_cmd = "CREATE TABLE IF NOT EXISTS " + name + "(" +
-                        "YCSBC_KEY VARCHAR(64) PRIMARY KEY, " +
-                        "YCSBC_TAG VARCHAR(64)" +
-                        "YCSBC_VAL VARCHAR(64)" +
-                        ");";
+                        "YCSBC_KEY VARCHAR PRIMARY KEY, ";
+    for (size_t i = 0; i < cols; i++) {
+        create_cmd += "FIELD" + std::to_string(i) + " TEXT";
+
+        if (i < cols - 1)
+            create_cmd += ", ";
+        else
+            create_cmd += ");";
+    }
     
     // We only expect one result row to be returned, hence no separate 
     // callback function is needed.
@@ -151,19 +154,9 @@ int SqliteLibDB::Insert(const string &table, const string &key,
 
     char *err_msg = NULL;           // Error message returned from sqlite
     
-    // Check if table <table> exists; if not so, create it
-    // The lock should not be a hgue performance bottleneck here, since sqlite
-    // serializes modification operations anway.
-    table_lock.lock();
-    if (table_names.find(table) == table_names.end()) {
-        if (CreateTable(table) != 0) {
-            table_lock.unlock();
-            throw std::runtime_error("Failed to create new table.");
-        }
-
-        table_names.insert(table);
+    if (CreateTable(table, ycsbc_num_cols) != 0) {
+        throw std::runtime_error("Failed to create new table.");
     }
-    table_lock.unlock();
     
     // Assemble an SQL insertion command
     string insert_cmd = "";
