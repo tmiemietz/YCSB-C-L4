@@ -179,3 +179,13 @@ int SqliteLibDB::Delete(const string &table, const string &key) {
 
 } // ycsbc
 
+extern "C" {
+pid_t getpid(void);
+uid_t geteuid(void);
+}
+
+// SQLite requires getpid(). Just provide some PID chosen by fair dice roll.
+pid_t getpid(void) { return 4; }
+
+// Also provide some static effective UID.
+uid_t geteuid(void) { return 42; }
