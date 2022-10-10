@@ -3,7 +3,7 @@ L4DIR		?= $(PKGDIR)/../..
 
 TARGET		= ycsbc-l4
 
-REQUIRES_LIBS = libstdc++ libsupc++ sqlite
+REQUIRES_LIBS = libstdc++ libsupc++ sqlite libc_support_misc
 
 # Apparently, we need to define __STDC_LIMIT_MACROS to get all definitions from
 # stdint.h, see also https://stackoverflow.com/questions/25561677/intmax-max-was-not-declared-in-this-scope?noredirect=1&lq=1
