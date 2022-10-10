@@ -1,2 +1,2 @@
-requires: libstdc++ libsupc++
+requires: libstdc++ libsupc++ sqlite
 Maintainer till.miemietz@barkhauseninstitut.org
