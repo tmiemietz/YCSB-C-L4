@@ -22,7 +22,7 @@ using std::vector;
 namespace ycsbc {
 
 // Assert that r == SQLITE_OK.
-void assert_sqlite(int r) {
+static void assert_sqlite(int r) {
     assert(r == SQLITE_OK);
 }
 
@@ -44,7 +44,7 @@ struct Ctx {
  *
  * The returned pointer will be correctly freed when going out of scope.
  */
-std::unique_ptr<char, decltype(&sqlite3_free)> escape_sql(const char *str) {
+static std::unique_ptr<char, decltype(&sqlite3_free)> escape_sql(const char *str) {
     return {sqlite3_mprintf("%Q", str), sqlite3_free};
 }
 
