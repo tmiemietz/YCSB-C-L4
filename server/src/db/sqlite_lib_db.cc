@@ -4,6 +4,7 @@
  *                    the YCSB benchmark process.                             *
  *                                                                            *
  * Author: Till Miemietz <till.miemietz@barkhauseninstitut.org>               *
+ * Author: Viktor Reusch                                                      *
  *                                                                            *
  ******************************************************************************/
 
@@ -23,7 +24,7 @@ SqliteLibDB::SqliteLibDB(const string &filename, size_t db_col_cnt):
     filename{filename}, ycsbc_num_cols(db_col_cnt) {}
 
 /* Initialize the database connection for this thread. */
-void SqliteLibDB::Init() {
+void *SqliteLibDB::Init() {
     int rc = -1;                    // Return code for DB operations
 
     const char *filename_cstr = filename.c_str();
@@ -48,7 +49,7 @@ void SqliteLibDB::Init() {
     }
 
     // TODO: Configure journaling (memory vs. off)
-
+    return nullptr;
 }
 
 /* Sqlite callback for adding a result to a result vector                     */
@@ -98,7 +99,7 @@ int SqliteLibDB::CreateTable(const string &name, size_t cols) {
     return(0);
 }
 
-int SqliteLibDB::Read(const string &table, const string &key,
+int SqliteLibDB::Read(void *ctx, const string &table, const string &key,
                       const vector<std::string> *fields,
                       vector<KVPair> &result) {
     int rc = -1;                    // Return code for DB operations
@@ -136,19 +137,19 @@ int SqliteLibDB::Read(const string &table, const string &key,
         return(kOK);
 }
 
-int SqliteLibDB::Scan(const string &table, const string &key,
+int SqliteLibDB::Scan(void *ctx, const string &table, const string &key,
                       int len, const vector<std::string> *fields,
                       vector<std::vector<KVPair>> &result) {
     return(0);
 }
 
-int SqliteLibDB::Update(const string &table, const string &key,
+int SqliteLibDB::Update(void *ctx, const string &table, const string &key,
                         vector<KVPair> &values) {
     return(0);
 }
 
 // Insert a set of key-value pairs into the table <table>.
-int SqliteLibDB::Insert(const string &table, const string &key,
+int SqliteLibDB::Insert(void *ctx, const string &table, const string &key,
                         vector<KVPair> &values) {
     int rc = -1;                    // Return code for DB operations
 
@@ -180,7 +181,7 @@ int SqliteLibDB::Insert(const string &table, const string &key,
     return(kOK);
 }
 
-int SqliteLibDB::Delete(const string &table, const string &key) {
+int SqliteLibDB::Delete(void *ctx, const string &table, const string &key) {
     return(0);
 }
 

@@ -4,6 +4,7 @@
  *                   the YCSB benchmark process.                              *
  *                                                                            *
  * Author: Till Miemietz <till.miemietz@barkhauseninstitut.org>               *
+ * Author: Viktor Reusch                                                      *
  *                                                                            *
  ******************************************************************************/
 
@@ -28,23 +29,25 @@ class SqliteLibDB : public DB {
         SqliteLibDB(const std::string &filename = std::string(":memory:"),
                     size_t db_col_cnt = 10);
 
-        void Init() override;
+        void *Init() override;
+        // TODO Close()
 
-        int Read(const std::string &table, const std::string &key,
+        int Read(void *ctx, const std::string &table, const std::string &key,
                  const std::vector<std::string> *fields,
-                 std::vector<KVPair> &result);
+                 std::vector<KVPair> &result) override;
 
-        int Scan(const std::string &table, const std::string &key,
+        int Scan(void *ctx, const std::string &table, const std::string &key,
                  int len, const std::vector<std::string> *fields,
-                 std::vector<std::vector<KVPair>> &result);
+                 std::vector<std::vector<KVPair>> &result) override;
 
-        int Update(const std::string &table, const std::string &key,
-                   std::vector<KVPair> &values);
+        int Update(void *ctx, const std::string &table, const std::string &key,
+                   std::vector<KVPair> &values) override;
 
-        int Insert(const std::string &table, const std::string &key,
-                  std::vector<KVPair> &values);
+        int Insert(void *ctx, const std::string &table, const std::string &key,
+                  std::vector<KVPair> &values) override;
 
-        int Delete(const std::string &table, const std::string &key);
+        int Delete(void *ctx, const std::string &table,
+                   const std::string &key) override;
 
     private:
         // Filename of the DB

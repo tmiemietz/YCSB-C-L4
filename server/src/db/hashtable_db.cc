@@ -4,6 +4,7 @@
 //
 //  Created by Jinglei Ren on 12/24/14.
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
+//  Copyright (c) 2022 Viktor Reusch.
 //
 
 #include "db/hashtable_db.h"
@@ -18,7 +19,7 @@ using vmp::StringHashtable;
 
 namespace ycsbc {
 
-int HashtableDB::Read(const string &table, const string &key,
+int HashtableDB::Read(void *, const string &table, const string &key,
     const vector<string> *fields, vector<KVPair> &result) {
   string key_index(table + key);
   FieldHashtable *field_table = key_table_->Get(key_index.c_str());
@@ -40,7 +41,7 @@ int HashtableDB::Read(const string &table, const string &key,
   return DB::kOK;
 }
 
-int HashtableDB::Scan(const string &table, const string &key, int len,
+int HashtableDB::Scan(void *, const string &table, const string &key, int len,
     const vector<string> *fields, vector<vector<KVPair>> &result) {
   string key_index(table + key);
   vector<KeyHashtable::KVPair> key_pairs =
@@ -70,7 +71,7 @@ int HashtableDB::Scan(const string &table, const string &key, int len,
   return DB::kOK;
 }
 
-int HashtableDB::Update(const string &table, const string &key,
+int HashtableDB::Update(void *, const string &table, const string &key,
     vector<KVPair> &values) {
   string key_index(table + key);
   FieldHashtable *field_table = key_table_->Get(key_index.c_str());
@@ -95,7 +96,7 @@ int HashtableDB::Update(const string &table, const string &key,
   return DB::kOK;
 }
 
-int HashtableDB::Insert(const string &table, const string &key,
+int HashtableDB::Insert(void *, const string &table, const string &key,
     vector<KVPair> &values) {
   string key_index(table + key);
   FieldHashtable *field_table = key_table_->Get(key_index.c_str());
@@ -115,7 +116,7 @@ int HashtableDB::Insert(const string &table, const string &key,
   return DB::kOK;
 }
 
-int HashtableDB::Delete(const string &table, const string &key) {
+int HashtableDB::Delete(void *, const string &table, const string &key) {
   string key_index(table + key);
   FieldHashtable *field_table = key_table_->Remove(key_index.c_str());
   if (!field_table) {

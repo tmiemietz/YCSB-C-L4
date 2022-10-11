@@ -4,6 +4,7 @@
 //
 //  Created by Jinglei Ren on 12/19/14.
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
+//  Copyright (c) 2022 Viktor Reusch.
 //
 
 #include <cstring>
@@ -25,8 +26,8 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
     bool is_loading) {
-  db->Init();
-  ycsbc::Client client(*db, *wl);
+  void *ctx = db->Init();
+  ycsbc::Client client(*db, *wl, ctx);
   int oks = 0;
   for (int i = 0; i < num_ops; ++i) {
     if (is_loading) {
@@ -35,7 +36,7 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
       oks += client.DoTransaction();
     }
   }
-  db->Close();
+  db->Close(ctx);
   return oks;
 }
 
