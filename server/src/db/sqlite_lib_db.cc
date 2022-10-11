@@ -13,13 +13,36 @@
 #include <iostream>
 #include <exception>
 #include <utility>                  // For std::get and friends...
+#include <cassert>                  // For assert
 
 using std::string;
 using std::vector;
 
 namespace ycsbc {
 
-/* Default constructor for the library version of sqlite                      */
+// Assert that r == SQLITE_OK.
+void assert_sqlite(int r) {
+    assert(r == SQLITE_OK);
+}
+
+struct Ctx {
+    // DB that we are working with
+    sqlite3 *database;
+
+    ~Ctx() {
+        assert_sqlite(sqlite3_close(database));
+    }
+
+    static Ctx &cast(void *ctx) {
+        return *reinterpret_cast<Ctx *>(ctx);
+    }
+};
+
+/* Default constructor for the library version of sqlite.
+ *
+ * filename is copied because default arguments do not outlive the constructor
+ * expression.
+ */
 SqliteLibDB::SqliteLibDB(const string &filename, size_t db_col_cnt): 
     filename{filename}, ycsbc_num_cols(db_col_cnt) {}
 
@@ -37,8 +60,8 @@ void *SqliteLibDB::Init() {
         flags |= SQLITE_OPEN_URI;
     }
 
+    sqlite3 *database;
     // Open a new database
-    // TODO: Use a separate database pointer for each thread.
     rc = sqlite3_open_v2(filename_cstr, &database, flags, nullptr);
     if (rc != SQLITE_OK) {
         std::cerr << "Cannot open sqlite database " << filename << ": "
@@ -48,8 +71,14 @@ void *SqliteLibDB::Init() {
         throw std::runtime_error("Failed to open database.");
     }
 
+    void *ctx = new Ctx{database};
+
     // TODO: Configure journaling (memory vs. off)
-    return nullptr;
+    return ctx;
+}
+
+void SqliteLibDB::Close(void *ctx) {
+    delete &Ctx::cast(ctx);
 }
 
 /* Sqlite callback for adding a result to a result vector                     */
@@ -69,7 +98,7 @@ int SqliteLibDB::SqliteVecAddCallback(void *kvvec, int cnt,
 }
 
 /* Creates a new table, for the schema definition see the header of this class*/
-int SqliteLibDB::CreateTable(const string &name, size_t cols) {
+int SqliteLibDB::CreateTable(Ctx &ctx, const string &name, size_t cols) {
     int rc = -1;                    // Return code for DB operations
 
     char *err_msg = NULL;           // Error message returned from sqlite
@@ -88,7 +117,7 @@ int SqliteLibDB::CreateTable(const string &name, size_t cols) {
     
     // We only expect one result row to be returned, hence no separate 
     // callback function is needed.
-    rc = sqlite3_exec(database, create_cmd.c_str(), NULL, NULL, &err_msg);
+    rc = sqlite3_exec(ctx.database, create_cmd.c_str(), NULL, NULL, &err_msg);
     if (rc != SQLITE_OK) {
         std::cerr << "SQL error: " << err_msg << std::endl;
 
@@ -99,12 +128,14 @@ int SqliteLibDB::CreateTable(const string &name, size_t cols) {
     return(0);
 }
 
-int SqliteLibDB::Read(void *ctx, const string &table, const string &key,
+int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
                       const vector<std::string> *fields,
                       vector<KVPair> &result) {
     int rc = -1;                    // Return code for DB operations
 
     char *err_msg = NULL;           // Error message returned from sqlite
+
+    auto ctx = Ctx::cast(ctx_);
 
     // Assemble an SQL read command
     string read_cmd = "SELECT YCSBC_TAG, YCSBC_VAL FROM " + table + "WHERE ";
@@ -122,7 +153,7 @@ int SqliteLibDB::Read(void *ctx, const string &table, const string &key,
 
     // We only expect one result row to be returned, hence no separate 
     // callback function is needed.
-    rc = sqlite3_exec(database, read_cmd.c_str(), &SqliteVecAddCallback,
+    rc = sqlite3_exec(ctx.database, read_cmd.c_str(), &SqliteVecAddCallback,
                       &result, &err_msg);
     if (rc != SQLITE_OK) {
         std::cerr << "SQL error: " << err_msg << std::endl;
@@ -149,13 +180,15 @@ int SqliteLibDB::Update(void *ctx, const string &table, const string &key,
 }
 
 // Insert a set of key-value pairs into the table <table>.
-int SqliteLibDB::Insert(void *ctx, const string &table, const string &key,
+int SqliteLibDB::Insert(void *ctx_, const string &table, const string &key,
                         vector<KVPair> &values) {
     int rc = -1;                    // Return code for DB operations
 
     char *err_msg = NULL;           // Error message returned from sqlite
     
-    if (CreateTable(table, ycsbc_num_cols) != 0) {
+    auto ctx = Ctx::cast(ctx_);
+
+    if (CreateTable(ctx, table, ycsbc_num_cols) != 0) {
         throw std::runtime_error("Failed to create new table.");
     }
     
@@ -170,7 +203,7 @@ int SqliteLibDB::Insert(void *ctx, const string &table, const string &key,
 
     // We only expect one result row to be returned, hence no separate 
     // callback function is needed.
-    rc = sqlite3_exec(database, insert_cmd.c_str(), NULL, NULL, &err_msg);
+    rc = sqlite3_exec(ctx.database, insert_cmd.c_str(), NULL, NULL, &err_msg);
     if (rc != SQLITE_OK) {
         std::cerr << "SQL error: " << err_msg << std::endl;
 

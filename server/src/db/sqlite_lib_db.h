@@ -19,6 +19,8 @@
 
 namespace ycsbc {
 
+struct Ctx;
+
 class SqliteLibDB : public DB {
     public:
         /*
@@ -30,7 +32,7 @@ class SqliteLibDB : public DB {
                     size_t db_col_cnt = 10);
 
         void *Init() override;
-        // TODO Close()
+        void Close(void *ctx) override;
 
         int Read(void *ctx, const std::string &table, const std::string &key,
                  const std::vector<std::string> *fields,
@@ -51,9 +53,7 @@ class SqliteLibDB : public DB {
 
     private:
         // Filename of the DB
-        const std::string &filename;
-        // DB that we are working with
-        sqlite3 *database;
+        const std::string filename;
 
         // Number of data columns used in the benchmark table, defaults to
         // 10 (set in the constructor)
@@ -68,7 +68,7 @@ class SqliteLibDB : public DB {
          *      - cols times TEXT columns, named from FIELD0 to 
          *        FIELD<cols - 1>
          */
-        int CreateTable(const std::string &name, size_t cols);
+        int CreateTable(Ctx &ctx, const std::string &name, size_t cols);
 
 
         /* Sqlite callback for adding a result to a result vector             */
