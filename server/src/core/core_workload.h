@@ -4,6 +4,7 @@
 //
 //  Created by Jinglei Ren on 12/9/14.
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
+//  Copyright (c) 2022 Viktor Reusch.
 //
 
 #ifndef YCSB_C_CORE_WORKLOAD_H_
@@ -145,6 +146,8 @@ class CoreWorkload {
   /// Called once, in the main client thread, before any operations are started.
   ///
   virtual void Init(const utils::Properties &p);
+  /// Returns used table names with their columns.
+  virtual DB::Tables Tables() const;
   
   virtual void BuildValues(std::vector<ycsbc::DB::KVPair> &values);
   virtual void BuildUpdate(std::vector<ycsbc::DB::KVPair> &update);

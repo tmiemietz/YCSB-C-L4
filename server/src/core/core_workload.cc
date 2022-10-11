@@ -4,6 +4,7 @@
 //
 //  Created by Jinglei Ren on 12/9/14.
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
+//  Copyright (c) 2022 Viktor Reusch.
 //
 
 #include "uniform_generator.h"
@@ -14,7 +15,9 @@
 #include "core_workload.h"
 
 #include <string>
+#include <vector>
 
+using ycsbc::Table;
 using ycsbc::CoreWorkload;
 using std::string;
 
@@ -166,6 +169,16 @@ void CoreWorkload::Init(const utils::Properties &p) {
     throw utils::Exception("Distribution not allowed for scan length: " +
         scan_len_dist);
   }
+}
+
+/// Return the single table with all fields.
+ycsbc::DB::Tables CoreWorkload::Tables() const {
+  std::vector<std::string> columns;
+  for (int f = 0; f < field_count_; f++) {
+    columns.push_back("field" + std::to_string(f));
+  }
+
+  return {{table_name_, columns}};
 }
 
 ycsbc::Generator<uint64_t> *CoreWorkload::GetFieldLenGenerator(

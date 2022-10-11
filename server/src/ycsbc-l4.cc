@@ -53,6 +53,8 @@ int main(const int argc, const char *argv[]) {
   ycsbc::CoreWorkload wl;
   wl.Init(props);
 
+  db->CreateSchema(wl.Tables());
+
   const int num_threads = stoi(props.GetProperty("threadcount", "1"));
 
   // Loads data

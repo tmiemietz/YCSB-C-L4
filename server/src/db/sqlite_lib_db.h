@@ -28,9 +28,10 @@ class SqliteLibDB : public DB {
          * benchmark database. By default, the in-memory implementation of
          * sqlite is used.
          */
-        SqliteLibDB(const std::string &filename = std::string(":memory:"),
-                    size_t db_col_cnt = 10);
+        SqliteLibDB(const std::string &filename = std::string(":memory:"));
+        ~SqliteLibDB() override;
 
+        void CreateSchema(DB::Tables tables) override;
         void *Init() override;
         void Close(void *ctx) override;
 
@@ -55,21 +56,12 @@ class SqliteLibDB : public DB {
         // Filename of the DB
         const std::string filename;
 
-        // Number of data columns used in the benchmark table, defaults to
-        // 10 (set in the constructor)
-        size_t ycsbc_num_cols;
+        // Database connection used for creating the schema.
+        // It must be kept alive to keep in-memory databases alive.
+        sqlite3 *schema_database = nullptr;
 
-        /*********************************************************************
-         *
-         * Creates a new table named <name>.
-         *
-         * The schema of newly created tables is as follows:
-         *      - one column named YCSBC_KEY (VARCHAR, primary key of table)
-         *      - cols times TEXT columns, named from FIELD0 to 
-         *        FIELD<cols - 1>
-         */
-        int CreateTable(Ctx &ctx, const std::string &name, size_t cols);
-
+        // Open a new database connection.
+        sqlite3* OpenDB() const;
 
         /* Sqlite callback for adding a result to a result vector             */
         static int SqliteVecAddCallback(void *vector, int cnt, char **data, 

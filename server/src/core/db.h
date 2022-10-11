@@ -15,12 +15,24 @@
 
 namespace ycsbc {
 
+struct Table {
+  // Tablename
+  std::string name;
+  // List of column names (excluding key).
+  std::vector<std::string> columns;
+};
+
 class DB {
  public:
   typedef std::pair<std::string, std::string> KVPair;
+  typedef std::vector<Table> Tables;
   static const int kOK = 0;
   static const int kErrorNoData = 1;
   static const int kErrorConflict = 2;
+  /// Initializes the database schema with all tables.
+  ///
+  /// @param tables A list of tables to create.
+  virtual void CreateSchema(Tables tables) { (void)tables; }
   ///
   /// Initializes any state for accessing this DB.
   /// Called once per DB client (thread); there is a single DB instance globally.
