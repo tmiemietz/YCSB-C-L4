@@ -15,6 +15,8 @@
 #include <utility>                  // For std::get and friends...
 #include <cassert>                  // For assert
 #include <memory>                   // For unique_ptr
+#include <algorithm>                // For std::sort
+#include <unordered_map>            // For std::unordered_map
 
 using std::string;
 using std::vector;
@@ -29,8 +31,15 @@ static void assert_sqlite(int r) {
 struct Ctx {
     // DB that we are working with
     sqlite3 *database = nullptr;
+    // Use a map as a statement cache like in the original YCSB.
+    std::unordered_map<std::string, sqlite3_stmt *> stmts{};
 
     ~Ctx() {
+        for (auto stmt : stmts) {
+            assert_sqlite(sqlite3_clear_bindings(stmt.second));
+            assert_sqlite(sqlite3_reset(stmt.second));
+            assert_sqlite(sqlite3_finalize(stmt.second));
+        }
         if (database)
             assert_sqlite(sqlite3_close(database));
     }
@@ -46,6 +55,19 @@ struct Ctx {
  */
 static std::unique_ptr<char, decltype(&sqlite3_free)> escape_sql(const char *str) {
     return {sqlite3_mprintf("%Q", str), sqlite3_free};
+}
+
+/* Bind a string to an SQLite statement. */
+static void bind_string(sqlite3_stmt *stmt, int pos, const std::string &str) {
+    int rc = -1;
+
+    rc = sqlite3_bind_text(stmt, pos, str.c_str(), str.size(), SQLITE_STATIC);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Binding error: "
+                  << sqlite3_errmsg(sqlite3_db_handle(stmt))
+                  << std::endl;
+        throw std::runtime_error("Failed to bind parameter");
+    }
 }
 
 /* Default constructor for the library version of sqlite.
@@ -159,7 +181,7 @@ int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
 
     char *err_msg = NULL;           // Error message returned from sqlite
 
-    auto ctx = Ctx::cast(ctx_);
+    auto &ctx = Ctx::cast(ctx_);
 
     // Assemble an SQL read command
     string read_cmd = "SELECT YCSBC_TAG, YCSBC_VAL FROM " + table + "WHERE ";
@@ -207,31 +229,59 @@ int SqliteLibDB::Update(void *ctx, const string &table, const string &key,
 int SqliteLibDB::Insert(void *ctx_, const string &table, const string &key,
                         vector<KVPair> &values) {
     int rc = -1;                    // Return code for DB operations
+    
+    auto &ctx = Ctx::cast(ctx_);
 
-    char *err_msg = NULL;           // Error message returned from sqlite
-    
-    auto ctx = Ctx::cast(ctx_);
-    
-    // Assemble an SQL insertion command
-    string insert_cmd = "";
-    for (auto const& pair : values) {
-        insert_cmd += "INSERT INTO " + table + "VALUES(" +
-                      "'" + key + "', " +
-                      "'" + std::get<0>(pair) + "', " +
-                      "'" + std::get<1>(pair) + "');";
+    // Sort fields such that order becomes irrelevant for key of map.
+    std::sort(values.begin(), values.end(),
+              [](KVPair a, KVPair b) { return a.first < b.first; });
+
+    // Assemble an SQL insertion statement.
+    string stmt{"INSERT INTO "};
+    stmt += escape_sql(table.c_str()).get();
+    stmt += " (YCSBC_KEY";
+    for (auto &value : values) {
+        stmt += ", ";
+        stmt += escape_sql(value.first.c_str()).get();
+    }
+    stmt += ") VALUES (?";
+    for (std::size_t i = 0; i < values.size(); i++) {
+        stmt += ", ?";
+    }
+    stmt += ");";
+
+    auto it = ctx.stmts.find(stmt);
+    sqlite3_stmt *pStmt = nullptr;
+    if (it == ctx.stmts.end()) {
+        // Statement was not found in cache, prepare a new statement.
+        rc = sqlite3_prepare_v2(ctx.database, stmt.c_str(), stmt.length(), &pStmt, nullptr);
+        if (rc != SQLITE_OK) {
+            std::cerr << "SQL error: " << sqlite3_errmsg(ctx.database) << std::endl;
+            throw std::runtime_error("Failed to prepare insert statement");
+        }
+
+        // Insert into cache.
+        ctx.stmts.insert({std::move(stmt), pStmt});
+    } else
+        pStmt = it->second;
+
+    // Bind key and field values.
+    bind_string(pStmt, 1, key);
+    for (std::size_t i = 0; i < values.size(); i++) {
+        bind_string(pStmt, i + 2, values[i].second);
     }
 
-    // We only expect one result row to be returned, hence no separate 
-    // callback function is needed.
-    rc = sqlite3_exec(ctx.database, insert_cmd.c_str(), NULL, NULL, &err_msg);
-    if (rc != SQLITE_OK) {
-        std::cerr << "SQL error: " << err_msg << std::endl;
-
-        sqlite3_free(err_msg);
-        return(kErrorConflict);
+    // We do not expect any result row, hence SQLITE_DONE should be returned.
+    rc = sqlite3_step(pStmt);
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Stepping error: " << sqlite3_errmsg(ctx.database) << std::endl;
+        throw std::runtime_error("Failed to step insert statement");
     }
 
-    return(kOK);
+    assert_sqlite(sqlite3_clear_bindings(pStmt));
+    assert_sqlite(sqlite3_reset(pStmt));
+
+    return kOK;
 }
 
 int SqliteLibDB::Delete(void *ctx, const string &table, const string &key) {
