@@ -34,6 +34,7 @@ struct Ctx {
     // Use a map as a statement cache like in the original YCSB.
     std::unordered_map<std::string, sqlite3_stmt *> stmts{};
 
+    Ctx() = default;
     ~Ctx() {
         for (auto stmt : stmts) {
             assert_sqlite(sqlite3_clear_bindings(stmt.second));
@@ -43,6 +44,11 @@ struct Ctx {
         if (database)
             assert_sqlite(sqlite3_close(database));
     }
+    Ctx(const Ctx&) = delete;
+    Ctx(Ctx&&) = delete;
+
+    Ctx& operator=(const Ctx&) = delete;
+    Ctx& operator=(Ctx&&) = delete;
 
     static Ctx &cast(void *ctx) {
         return *reinterpret_cast<Ctx *>(ctx);
