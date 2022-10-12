@@ -109,7 +109,7 @@ inline uint64_t ZipfianGenerator::Next(uint64_t num) {
     return last_value_ = 1;
   }
 
-  return last_value_ = base_ + num * std::pow(eta_ * u - eta_ + 1, alpha_);
+  return last_value_ = base_ + num * (uint64_t) std::pow(eta_ * u - eta_ + 1, alpha_);
 }
 
 inline uint64_t ZipfianGenerator::Last() {

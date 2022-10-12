@@ -24,8 +24,8 @@ void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
-int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
-    bool is_loading) {
+static int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, 
+    const int num_ops, bool is_loading) {
   void *ctx = db->Init();
   ycsbc::Client client(*db, *wl, ctx);
   int oks = 0;
