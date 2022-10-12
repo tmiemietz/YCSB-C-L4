@@ -76,6 +76,19 @@ static void bind_string(sqlite3_stmt *stmt, int pos, const std::string &str) {
     }
 }
 
+/* Bind an integer to an SQLite statement. */
+static void bind_int(sqlite3_stmt *stmt, int pos, int val) {
+    int rc = -1;
+
+    rc = sqlite3_bind_int(stmt, pos, val);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Binding error: "
+                  << sqlite3_errmsg(sqlite3_db_handle(stmt))
+                  << std::endl;
+        throw std::runtime_error("Failed to bind parameter");
+    }
+}
+
 /* Default constructor for the library version of sqlite.
  *
  * filename is copied because default arguments do not outlive the constructor
@@ -201,7 +214,7 @@ int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
         db_rc = sqlite3_prepare_v2(ctx.database, stmt.c_str(), stmt.length(), &pStmt, nullptr);
         if (db_rc != SQLITE_OK) {
             std::cerr << "SQL error: " << sqlite3_errmsg(ctx.database) << std::endl;
-            throw std::runtime_error("Failed to prepare insert statement");
+            throw std::runtime_error("Failed to prepare read statement");
         }
 
         // Insert into cache.
@@ -252,7 +265,7 @@ int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
     default:
         // Error, bail out
         std::cerr << "Stepping error: " << sqlite3_errmsg(ctx.database) << std::endl;
-        throw std::runtime_error("Failed to step insert statement");
+        throw std::runtime_error("Failed to step read statement");
         break;
     }
 
@@ -264,15 +277,147 @@ int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
     return(retval);
 }
 
-int SqliteLibDB::Scan(void *ctx, const string &table, const string &key,
+int SqliteLibDB::Scan(void *ctx_, const string &table, const string &key,
                       int len, const vector<std::string> *fields,
                       vector<std::vector<KVPair>> &result) {
-    return(0);
+    int retval = -1;                    // Return code of this function
+    int db_rc  = -1;                    // Return code for DB operations
+    
+    auto &ctx = Ctx::cast(ctx_);
+
+    // Assemble an SQL selection statement. We always select everything from
+    // a row. In case only a subset of the columns is requested, we will 
+    // do the filtering afterwards, as we have to transform the query result
+    // to the KVPair vector anyways.
+    string stmt{"SELECT * FROM "};
+    stmt += escape_sql(table.c_str()).get();
+    stmt += "  WHERE YCSBC_KEY >= ? LIMIT ?;";
+
+    auto it = ctx.stmts.find(stmt);
+    sqlite3_stmt *pStmt = nullptr;
+    if (it == ctx.stmts.end()) {
+        // Statement was not found in cache, prepare a new statement.
+        db_rc = sqlite3_prepare_v2(ctx.database, stmt.c_str(), stmt.length(), &pStmt, nullptr);
+        if (db_rc != SQLITE_OK) {
+            std::cerr << "SQL error: " << sqlite3_errmsg(ctx.database) << std::endl;
+            throw std::runtime_error("Failed to prepare scan statement");
+        }
+
+        // Insert into cache.
+        ctx.stmts.insert({std::move(stmt), pStmt});
+    } 
+    else {
+        pStmt = it->second;
+    }
+
+    // Bind key value and limit to prepared SQL statement.
+    bind_string(pStmt, 1, key);
+    bind_int(pStmt, 2, len);
+
+    // We have to step the database multiple times, since we have requested
+    // several rows at once. Bail out of the whole application upon any errors.
+    retval = kErrorNoData;
+    while ((db_rc = sqlite3_step(pStmt)) != SQLITE_DONE) {
+        if (db_rc == SQLITE_ROW) {
+            // Fill the result into the result vector, filter out unwanted 
+            // columns
+        
+            // We need to create a separate scope to be able to define variables
+            // "private" to this case
+            // get number of result columns returned by the sqlite query
+            int col_cnt = sqlite3_data_count(pStmt);    
+            
+            vector<KVPair> row_vec(fields->size());
+
+            for (int i = 0; i < col_cnt; i++) {
+                string col_name(reinterpret_cast<const char *>(
+                                sqlite3_column_name(pStmt, i)));
+
+                if (std::find(fields->begin(), fields->end(), col_name) !=
+                    fields->end()) {
+                    string col_content(reinterpret_cast<const char *>(
+                                       sqlite3_column_text(pStmt, i)));
+
+                    row_vec.emplace_back(col_name, col_content);
+                }
+            }
+
+            result.push_back(row_vec);
+            retval = kOK;
+        }
+        else {
+            // Error, bail out
+            std::cerr << "Stepping error: " 
+                      << sqlite3_errmsg(ctx.database) << std::endl;
+            throw std::runtime_error("Failed to step scan statement");
+        }
+    }
+
+    assert_sqlite(sqlite3_clear_bindings(pStmt));
+    assert_sqlite(sqlite3_reset(pStmt));
+
+    // TODO: Are we supposed to free the fields vector here?
+
+    return(retval);
 }
 
-int SqliteLibDB::Update(void *ctx, const string &table, const string &key,
+int SqliteLibDB::Update(void *ctx_, const string &table, const string &key,
                         vector<KVPair> &values) {
-    return(0);
+    int  rc    = -1;                    // Return code for DB operations
+    bool first = true;                  // Are we working on the first value?
+    
+    std::size_t i = 0;                  // Index into values vector
+
+    auto &ctx = Ctx::cast(ctx_);
+
+    // Assemble an SQL insertion statement.
+    string stmt{"UPDATE "};
+    stmt += escape_sql(table.c_str()).get();
+    stmt += " SET ";
+    for (auto &value : values) {
+        if (first == true)
+            first = false;
+        else
+            stmt += ", ";
+        
+        stmt += escape_sql(value.first.c_str()).get();
+        stmt += " = ?";
+    }
+    stmt += " WHERE YCSBC_KEY = ?;";
+
+    auto it = ctx.stmts.find(stmt);
+    sqlite3_stmt *pStmt = nullptr;
+    if (it == ctx.stmts.end()) {
+        // Statement was not found in cache, prepare a new statement.
+        rc = sqlite3_prepare_v2(ctx.database, stmt.c_str(), stmt.length(), &pStmt, nullptr);
+        if (rc != SQLITE_OK) {
+            std::cerr << "SQL error: " << sqlite3_errmsg(ctx.database) << std::endl;
+            throw std::runtime_error("Failed to prepare update statement");
+        }
+
+        // Insert into cache.
+        ctx.stmts.insert({std::move(stmt), pStmt});
+    } else
+        pStmt = it->second;
+
+    // Bind key and field values.
+    for (i = 0; i < values.size(); i++) {
+        bind_string(pStmt, i + 1, values[i].second);
+    }
+    // Bind last argument with primary key
+    bind_string(pStmt, i + 1, key);
+
+    // We do not expect any result row, hence SQLITE_DONE should be returned.
+    rc = sqlite3_step(pStmt);
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Stepping error: " << sqlite3_errmsg(ctx.database) << std::endl;
+        throw std::runtime_error("Failed to step update statement");
+    }
+
+    assert_sqlite(sqlite3_clear_bindings(pStmt));
+    assert_sqlite(sqlite3_reset(pStmt));
+
+    return(kOK);
 }
 
 // Insert a set of key-value pairs into the table <table>.
@@ -334,8 +479,45 @@ int SqliteLibDB::Insert(void *ctx_, const string &table, const string &key,
     return kOK;
 }
 
-int SqliteLibDB::Delete(void *ctx, const string &table, const string &key) {
-    return(0);
+int SqliteLibDB::Delete(void *ctx_, const string &table, const string &key) {
+    int rc = -1;                    // Return code for DB operations
+    
+    auto &ctx = Ctx::cast(ctx_);
+
+    // Assemble an SQL deletion statement.
+    string stmt{"DELETE FROM "};
+    stmt += escape_sql(table.c_str()).get();
+    stmt += " WHERE YCSBC_KEY = ?";
+
+    auto it = ctx.stmts.find(stmt);
+    sqlite3_stmt *pStmt = nullptr;
+    if (it == ctx.stmts.end()) {
+        // Statement was not found in cache, prepare a new statement.
+        rc = sqlite3_prepare_v2(ctx.database, stmt.c_str(), stmt.length(), &pStmt, nullptr);
+        if (rc != SQLITE_OK) {
+            std::cerr << "SQL error: " << sqlite3_errmsg(ctx.database) << std::endl;
+            throw std::runtime_error("Failed to prepare delete statement");
+        }
+
+        // Insert into cache.
+        ctx.stmts.insert({std::move(stmt), pStmt});
+    } else
+        pStmt = it->second;
+
+    // Bind key value.
+    bind_string(pStmt, 1, key);
+
+    // We do not expect any result row, hence SQLITE_DONE should be returned.
+    rc = sqlite3_step(pStmt);
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Stepping error: " << sqlite3_errmsg(ctx.database) << std::endl;
+        throw std::runtime_error("Failed to step delete statement");
+    }
+
+    assert_sqlite(sqlite3_clear_bindings(pStmt));
+    assert_sqlite(sqlite3_reset(pStmt));
+
+    return(kOK);
 }
 
 SqliteLibDB::~SqliteLibDB() {
