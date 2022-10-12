@@ -250,7 +250,8 @@ int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
                 string col_name(reinterpret_cast<const char *>(
                                 sqlite3_column_name(pStmt, i)));
 
-                if (std::find(fields->begin(), fields->end(), col_name) !=
+                if (fields == nullptr ||
+                    std::find(fields->begin(), fields->end(), col_name) !=
                     fields->end()) {
                     string col_content(reinterpret_cast<const char *>(
                                        sqlite3_column_text(pStmt, i)));
