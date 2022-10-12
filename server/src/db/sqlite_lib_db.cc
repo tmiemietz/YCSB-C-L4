@@ -150,8 +150,6 @@ void SqliteLibDB::CreateSchema(DB::Tables tables) {
 
 /* Initialize the database connection for this thread. */
 void *SqliteLibDB::Init() {
-    int rc = -1;                    // Return code for DB operations
-
     std::unique_ptr<Ctx> ctx{new Ctx{}};
     ctx->database = OpenDB();
 
@@ -183,41 +181,87 @@ int SqliteLibDB::SqliteVecAddCallback(void *kvvec, int cnt,
 int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
                       const vector<std::string> *fields,
                       vector<KVPair> &result) {
-    int rc = -1;                    // Return code for DB operations
-
-    char *err_msg = NULL;           // Error message returned from sqlite
-
+    int retval = -1;                    // Return code of this function
+    int db_rc  = -1;                    // Return code for DB operations
+    
     auto &ctx = Ctx::cast(ctx_);
 
-    // Assemble an SQL read command
-    string read_cmd = "SELECT YCSBC_TAG, YCSBC_VAL FROM " + table + "WHERE ";
-    // If fields == NULL, read all records
-    if (fields == NULL) {
-        read_cmd += "YCSBC_KEY = " + key + ";";
-    }
-    else {
-        read_cmd += "YCSBC_KEY = " + key + " AND YCSBC_TAG IN (";
-        for (string const& s : *fields) {
-            read_cmd += s + ", ";
+    // Assemble an SQL selection statement. We always select everything from
+    // a row. In case only a subset of the columns is requested, we will 
+    // do the filtering afterwards, as we have to transform the query result
+    // to the KVPair vector anyways.
+    string stmt{"SELECT * FROM "};
+    stmt += escape_sql(table.c_str()).get();
+    stmt += "  WHERE YCSBC_KEY = ?";
+
+    auto it = ctx.stmts.find(stmt);
+    sqlite3_stmt *pStmt = nullptr;
+    if (it == ctx.stmts.end()) {
+        // Statement was not found in cache, prepare a new statement.
+        db_rc = sqlite3_prepare_v2(ctx.database, stmt.c_str(), stmt.length(), &pStmt, nullptr);
+        if (db_rc != SQLITE_OK) {
+            std::cerr << "SQL error: " << sqlite3_errmsg(ctx.database) << std::endl;
+            throw std::runtime_error("Failed to prepare insert statement");
         }
-        read_cmd += ");";
+
+        // Insert into cache.
+        ctx.stmts.insert({std::move(stmt), pStmt});
+    } 
+    else {
+        pStmt = it->second;
     }
 
-    // We only expect one result row to be returned, hence no separate 
-    // callback function is needed.
-    rc = sqlite3_exec(ctx.database, read_cmd.c_str(), &SqliteVecAddCallback,
-                      &result, &err_msg);
-    if (rc != SQLITE_OK) {
-        std::cerr << "SQL error: " << err_msg << std::endl;
+    // Bind key value to prepared SQL statement.
+    bind_string(pStmt, 1, key);
 
-        sqlite3_free(err_msg);
-        return(kErrorConflict);
+    // We only step the database once: Either there is no result, or there
+    // is exactly one, as we select for the primary key which is unique by
+    // definition. Hence, even after receiving SQLITE_ROW from the stepping
+    // function, we should be safe to assume that we don't miss any results.
+    db_rc = sqlite3_step(pStmt);
+    switch (db_rc) {
+    case SQLITE_DONE:
+        // Nothing was found
+        retval = kErrorNoData;
+        break;
+    case SQLITE_ROW:
+        // Fill the result into the result vector, filter out unwanted columns
+        
+        // We need to create a separate scope to be able to define variables
+        // "private" to this case
+        {
+            // get number of result columns returned by the sqlite query
+            int col_cnt = sqlite3_data_count(pStmt);    
+        
+            for (int i = 0; i < col_cnt; i++) {
+                string col_name(reinterpret_cast<const char *>(
+                                sqlite3_column_name(pStmt, i)));
+
+                if (std::find(fields->begin(), fields->end(), col_name) !=
+                    fields->end()) {
+                    string col_content(reinterpret_cast<const char *>(
+                                       sqlite3_column_text(pStmt, i)));
+
+                    result.emplace_back(col_name, col_content);
+                }
+            }
+        }
+
+        retval = kOK;
+        break;
+    default:
+        // Error, bail out
+        std::cerr << "Stepping error: " << sqlite3_errmsg(ctx.database) << std::endl;
+        throw std::runtime_error("Failed to step insert statement");
+        break;
     }
 
-    if (result.empty())
-        return(kErrorNoData);
-    else
-        return(kOK);
+    assert_sqlite(sqlite3_clear_bindings(pStmt));
+    assert_sqlite(sqlite3_reset(pStmt));
+
+    // TODO: Are we supposed to free the fields vector here?
+
+    return(retval);
 }
 
 int SqliteLibDB::Scan(void *ctx, const string &table, const string &key,
