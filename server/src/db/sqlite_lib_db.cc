@@ -326,15 +326,16 @@ int SqliteLibDB::Scan(void *ctx_, const string &table, const string &key,
             // We need to create a separate scope to be able to define variables
             // "private" to this case
             // get number of result columns returned by the sqlite query
-            int col_cnt = sqlite3_data_count(pStmt);    
-            
-            vector<KVPair> row_vec(fields->size());
+            int col_cnt = sqlite3_data_count(pStmt);
+
+            vector<KVPair> row_vec(fields ? fields->size() : col_cnt);
 
             for (int i = 0; i < col_cnt; i++) {
                 string col_name(reinterpret_cast<const char *>(
                                 sqlite3_column_name(pStmt, i)));
 
-                if (std::find(fields->begin(), fields->end(), col_name) !=
+                if (fields == nullptr ||
+                    std::find(fields->begin(), fields->end(), col_name) !=
                     fields->end()) {
                     string col_content(reinterpret_cast<const char *>(
                                        sqlite3_column_text(pStmt, i)));
