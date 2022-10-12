@@ -410,7 +410,10 @@ int SqliteLibDB::Update(void *ctx_, const string &table, const string &key,
     bind_string(pStmt, i + 1, key);
 
     // We do not expect any result row, hence SQLITE_DONE should be returned.
-    rc = sqlite3_step(pStmt);
+    do {
+        rc = sqlite3_step(pStmt);
+        // Retry loop because concurrent write operations lock others out.
+    } while (rc == SQLITE_LOCKED);
     if (rc != SQLITE_DONE) {
         std::cerr << "Stepping error: " << sqlite3_errmsg(ctx.database) << std::endl;
         throw std::runtime_error("Failed to step update statement");
@@ -469,7 +472,10 @@ int SqliteLibDB::Insert(void *ctx_, const string &table, const string &key,
     }
 
     // We do not expect any result row, hence SQLITE_DONE should be returned.
-    rc = sqlite3_step(pStmt);
+    do {
+        rc = sqlite3_step(pStmt);
+        // Retry loop because concurrent write operations lock others out.
+    } while (rc == SQLITE_LOCKED);
     if (rc != SQLITE_DONE) {
         std::cerr << "Stepping error: " << sqlite3_errmsg(ctx.database) << std::endl;
         throw std::runtime_error("Failed to step insert statement");
