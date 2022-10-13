@@ -62,10 +62,6 @@ class SqliteLibDB : public DB {
 
         // Open a new database connection.
         sqlite3* OpenDB() const;
-
-        /* Sqlite callback for adding a result to a result vector             */
-        static int SqliteVecAddCallback(void *vector, int cnt, char **data, 
-                                        char **cols);
 };  
 
 } // ycsbc

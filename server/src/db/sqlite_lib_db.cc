@@ -175,22 +175,6 @@ void SqliteLibDB::Close(void *ctx) {
     delete &Ctx::cast(ctx);
 }
 
-/* Sqlite callback for adding a result to a result vector                     */
-int SqliteLibDB::SqliteVecAddCallback(void *kvvec, int cnt, 
-    char **data, char **cols) {
-   
-    (void) cols;
-    vector<KVPair> *vec = static_cast<vector<KVPair> *>(kvvec);
-
-    // check for expected result format
-    if (cnt != 2) 
-        return(1);
-
-    vec->push_back(std::pair<string, string>(string(data[0]), string(data[1])));
-
-    return(0);
-}
-
 int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
                       const vector<std::string> *fields,
                       vector<KVPair> &result) {
