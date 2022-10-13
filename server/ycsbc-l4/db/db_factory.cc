@@ -11,7 +11,7 @@
 #include <string>
 #include "db/basic_db.h"
 #include "db/lock_stl_db.h"
-#include "db/sqlite_lib_db.h"
+#include "sqlite_lib_db.h"
 
 using namespace std;
 using ycsbc::DB;

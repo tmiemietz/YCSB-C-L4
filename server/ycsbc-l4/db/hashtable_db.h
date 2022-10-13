@@ -10,7 +10,7 @@
 #ifndef YCSB_C_HASHTABLE_DB_H_
 #define YCSB_C_HASHTABLE_DB_H_
 
-#include "core/db.h"
+#include "db.h"
 
 #include <string>
 #include <vector>

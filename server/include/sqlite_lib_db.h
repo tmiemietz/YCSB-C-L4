@@ -11,7 +11,7 @@
 #ifndef YCSB_C_SQLITE_LIB_H
 #define YCSB_C_SQLITE_LIB_H
 
-#include "core/db.h"                // YCSBC interface for databases
+#include "db.h"                     // YCSBC interface for databases
 #include <sqlite3.h>                // Definitions for Sqlite
 
 #include <string>
