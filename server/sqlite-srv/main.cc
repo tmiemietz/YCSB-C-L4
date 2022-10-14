@@ -22,8 +22,8 @@ int main() {
   std::cout << "SQLite 3 Version: " << SQLITE_VERSION << std::endl;
 
   ipc::registerServer(server);
-
   std::cout << "Servers registered. Waiting for requests..." << std::endl;
+  server.loop();
 
   return 0;
 }

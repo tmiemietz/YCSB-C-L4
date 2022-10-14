@@ -3,6 +3,8 @@
  * Author: Viktor Reusch
  */
 
+#pragma once
+
 #include <l4/re/env>
 #include <l4/re/util/br_manager>
 #include <l4/re/util/cap_alloc>

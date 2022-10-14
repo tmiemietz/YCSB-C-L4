@@ -3,6 +3,8 @@
  * Author: Viktor Reusch
  */
 
+#pragma once
+
 #include "utils.h"
 
 namespace sqlite {
