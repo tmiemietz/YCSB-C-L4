@@ -22,10 +22,13 @@ struct BenchI : L4::Kobject_t<BenchI, L4::Kobject, 0x42> {
 // Interface for the database management and the factory for new benchmark
 // threads.
 struct DbI : L4::Kobject_t<DbI, L4::Kobject, 0x43> {
+  // Create the database schema.
+  // The table information is serialized into a char array.
+  L4_INLINE_RPC(long, schema, (L4::Ipc::Array<const char>));
   // Spawn a new thread with its own database connection.
   // Returns an IPC gate for communication with this thread.
   L4_INLINE_RPC(long, spawn, (L4::Ipc::Out<L4::Cap<BenchI>>));
-  typedef L4::Typeid::Rpcs<spawn_t> Rpcs;
+  typedef L4::Typeid::Rpcs<schema_t, spawn_t> Rpcs;
 };
 
 } // namespace ipc

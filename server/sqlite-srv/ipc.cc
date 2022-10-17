@@ -18,10 +18,15 @@
 #include <pthread-l4.h>
 #include <thread>
 
+#include "db.h"
 #include "ipc.h"
 #include "ipc_server.h"
+#include "serializer.h"
 #include "sqlite_lib_db.h"
 #include "utils.h"
+
+using serializer::Deserializer;
+using ycsbc::DB;
 
 namespace sqlite {
 namespace ipc {
@@ -93,6 +98,16 @@ public:
     // FIXME: Destroy barrier.
     pthread_barrier_t barrier;
     assert(!pthread_barrier_init(&barrier, NULL, 2));
+  }
+
+  long op_schema(DbI::Rights, L4::Ipc::Array_in_buf<char> const &data) {
+    DB::Tables tables{};
+    Deserializer d{data.data};
+
+    d >> tables;
+    db.CreateSchema(tables);
+
+    return L4_EOK;
   }
 
   long op_spawn(DbI::Rights, L4::Ipc::Cap<BenchI> &res) {

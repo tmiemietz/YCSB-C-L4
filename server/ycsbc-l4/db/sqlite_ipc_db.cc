@@ -9,8 +9,11 @@
 
 #include "sqlite_ipc_db.h" // Class definitions for sqlite_ipc_db
 #include "ipc_server.h"
+#include "serializer.h"
 
+#include <array>
 #include <assert.h>
+#include <cstddef>
 #include <exception>
 #include <iostream>
 #include <l4/re/env>
@@ -19,6 +22,7 @@
 #include <stdexcept>
 #include <sys/ipc.h>
 
+using serializer::Serializer;
 using sqlite::ipc::BenchI;
 using sqlite::ipc::DbI;
 using std::string;
@@ -31,9 +35,19 @@ SqliteIpcDB::SqliteIpcDB() : server{L4Re::Env::env()->get_cap<DbI>("ipc")} {
   L4Re::chkcap(server);
 }
 
-/* Send IPC for creating schema. */
+/* Send IPC for creating the schema. */
 void SqliteIpcDB::CreateSchema(DB::Tables tables) {
-  // TODO
+  // The UTCB message registers can fit 504 bytes on AMD64.
+  // So an array of 448 bytes should fit into it.
+  std::array<char, 448> data;
+  Serializer s{data.data(), data.size()};
+
+  s << tables;
+
+  auto rc = server->schema(L4::Ipc::Array<const char>(s.length(), s.start()));
+  assert(rc == L4_EOK);
+
+  std::cout << "Schema created." << std::endl;
 }
 
 /* Create a new session for this thread at the SQLite server. */

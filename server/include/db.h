@@ -10,20 +10,24 @@
 #ifndef YCSB_C_DB_H_
 #define YCSB_C_DB_H_
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace ycsbc {
 
 struct Table {
-  // Tablename
-  std::string name;
+  // Table name.
+  std::string name{};
   // List of column names (excluding key).
-  std::vector<std::string> columns;
+  std::vector<std::string> columns{};
+
+  Table() = default;
+  inline Table(std::string name, std::vector<std::string> columns)
+      : name{std::move(name)}, columns{std::move(columns)} {}
 };
 
 class DB {
- public:
+public:
   typedef std::pair<std::string, std::string> KVPair;
   typedef std::vector<Table> Tables;
   static const int kOK = 0;
@@ -35,17 +39,19 @@ class DB {
   virtual void CreateSchema(Tables tables) { (void)tables; }
   ///
   /// Initializes any state for accessing this DB.
-  /// Called once per DB client (thread); there is a single DB instance globally.
+  /// Called once per DB client (thread); there is a single DB instance
+  /// globally.
   /// @return A pointer to a per-thread context object (or NULL).
   ///
   virtual void *Init() { return nullptr; }
   ///
   /// Clears any state for accessing this DB.
-  /// Called once per DB client (thread); there is a single DB instance globally.
-  /// 
+  /// Called once per DB client (thread); there is a single DB instance
+  /// globally.
+  ///
   /// @param ctx Pointer to the per-thread context object.
   ///
-  virtual void Close(void * ctx) { (void)ctx; }
+  virtual void Close(void *ctx) { (void)ctx; }
   ///
   /// Reads a record from the database.
   /// Field/value pairs from the result are stored in a vector.
@@ -111,10 +117,10 @@ class DB {
   ///
   virtual int Delete(void *ctx, const std::string &table,
                      const std::string &key) = 0;
-  
-  virtual ~DB() { }
+
+  virtual ~DB() {}
 };
 
-} // ycsbc
+} // namespace ycsbc
 
 #endif // YCSB_C_DB_H_

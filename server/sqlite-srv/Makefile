@@ -10,7 +10,7 @@ PRIVATE_INCDIR = $(PKGDIR)/server/include
 # We have to include the private sqlitelibdb library from this package
 PRIVATE_LIBDIR  = $(PKGDIR_OBJ)/server/lib/sqlite-lib-db/OBJ-$(SYSTEM)
 
-EXTRA_LIBS      = -lycsbc_sqlitelibdb
+EXTRA_LIBS      = -lycsbc_sqlitelibdb -lycsbc_serializer
 
 SRC_CC = main.cc ipc.cc
 
