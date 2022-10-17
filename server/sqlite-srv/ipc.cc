@@ -20,7 +20,7 @@
 
 #include "db.h"
 #include "ipc.h"
-#include "ipc_server.h"
+#include "sqlite_ipc_server.h"              // IPC interface for this server
 #include "serializer.h"
 #include "sqlite_lib_db.h"
 #include "utils.h"

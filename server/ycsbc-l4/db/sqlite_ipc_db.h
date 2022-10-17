@@ -9,9 +9,9 @@
 
 #pragma once
 
-#include "db.h"         // YCSBC interface for databases
-#include "ipc_server.h" // Interfaces for the SQLite server.
-#include <sqlite3.h>    // Definitions for Sqlite
+#include "db.h"                     // YCSBC interface for databases
+#include "sqlite_ipc_server.h"      // Interfaces for the Sqlite server.
+#include <sqlite3.h>                // Definitions for Sqlite
 
 #include <string>
 #include <vector>

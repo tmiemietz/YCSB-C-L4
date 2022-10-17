@@ -8,7 +8,6 @@
  ******************************************************************************/
 
 #include "sqlite_ipc_db.h" // Class definitions for sqlite_ipc_db
-#include "ipc_server.h"
 #include "serializer.h"
 
 #include <array>
