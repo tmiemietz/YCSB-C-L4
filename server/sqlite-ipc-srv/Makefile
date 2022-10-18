@@ -1,7 +1,7 @@
 PKGDIR ?= ../..
 L4DIR  ?= $(PKGDIR)/../..
 
-TARGET = sqlite-server
+TARGET = sqlite-ipc-srv
 
 REQUIRES_LIBS = libstdc++ libsupc++ sqlite libc_support_misc
 
@@ -12,6 +12,6 @@ PRIVATE_LIBDIR  = $(PKGDIR_OBJ)/server/lib/sqlite-lib-db/OBJ-$(SYSTEM)
 
 EXTRA_LIBS      = -lycsbc_sqlitelibdb -lycsbc_serializer
 
-SRC_CC = main.cc ipc.cc
+SRC_CC = ipc.cc
 
 include $(L4DIR)/mk/prog.mk

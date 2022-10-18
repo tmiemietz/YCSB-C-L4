@@ -18,12 +18,14 @@ namespace ycsbc {
 struct Table {
   // Table name.
   std::string name{};
+
   // List of column names (excluding key).
   std::vector<std::string> columns{};
 
   Table() = default;
   inline Table(std::string name, std::vector<std::string> columns)
-      : name{std::move(name)}, columns{std::move(columns)} {}
+      : name{std::move(name)}, columns{std::move(columns)} {
+  }
 };
 
 class DB {

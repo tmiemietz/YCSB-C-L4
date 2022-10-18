@@ -11,10 +11,13 @@
 
 #include "db.h"                     // YCSBC interface for databases
 #include "sqlite_ipc_server.h"      // Interfaces for the Sqlite server.
+
 #include <sqlite3.h>                // Definitions for Sqlite
 
 #include <string>
 #include <vector>
+
+#include <l4/re/env>                // L4 environment
 
 namespace ycsbc {
 
@@ -22,32 +25,40 @@ struct Ctx;
 
 class SqliteIpcDB : public DB {
 public:
-  SqliteIpcDB();
-  // FIXME: Add destructor.
+    SqliteIpcDB(const std::string &filename = std::string(":memory:"));
+    // FIXME: Add destructor.
 
-  void CreateSchema(DB::Tables tables) override;
-  void *Init() override;
-  // FIXME: Implement Close().
+    void CreateSchema(DB::Tables tables) override;
+    void *Init() override;
+    // FIXME: Implement Close().
 
-  int Read(void *ctx, const std::string &table, const std::string &key,
-           const std::vector<std::string> *fields,
-           std::vector<KVPair> &result) override;
+    int Read(void *ctx, const std::string &table, const std::string &key,
+             const std::vector<std::string> *fields,
+             std::vector<KVPair> &result) override;
 
-  int Scan(void *ctx, const std::string &table, const std::string &key, int len,
-           const std::vector<std::string> *fields,
-           std::vector<std::vector<KVPair>> &result) override;
+    int Scan(void *ctx, const std::string &table, const std::string &key, int len,
+             const std::vector<std::string> *fields,
+             std::vector<std::vector<KVPair>> &result) override;
 
-  int Update(void *ctx, const std::string &table, const std::string &key,
-             std::vector<KVPair> &values) override;
+    int Update(void *ctx, const std::string &table, const std::string &key,
+               std::vector<KVPair> &values) override;
 
-  int Insert(void *ctx, const std::string &table, const std::string &key,
-             std::vector<KVPair> &values) override;
+    int Insert(void *ctx, const std::string &table, const std::string &key,
+               std::vector<KVPair> &values) override;
 
-  int Delete(void *ctx, const std::string &table,
-             const std::string &key) override;
+    int Delete(void *ctx, const std::string &table,
+               const std::string &key) override;
 
 private:
-  L4::Cap<sqlite::ipc::DbI> server;
+    // Filename of the DB, transmitted to server
+    const std::string filename;
+
+    // Capability to the sqlite IPC server
+    L4::Cap<sqlite::ipc::DbI> server;
+
+    // Dataspace for transmitting database layout information during setup
+    L4::Cap<L4Re::Dataspace> db_infopage;
+    char *db_infopage_addr = 0;
 };
 
 } // namespace ycsbc

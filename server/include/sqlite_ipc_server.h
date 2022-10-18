@@ -9,9 +9,14 @@
 #include <l4/sys/cxx/ipc_iface>
 #include <l4/sys/factory>
 #include <l4/sys/kobject>
+#include <l4/re/dataspace>
 
 namespace sqlite {
 namespace ipc {
+
+// Standard size for datasapces used for exchanging information during the      
+// benchmark, currently set to 1 MiB.                                           
+static const size_t YCSBC_DS_SIZE = 1 << 20; 
 
 // IPC interface to a single benchmark thread, which performs the Read(),
 // Scan(), etc. operations.
@@ -20,11 +25,14 @@ struct BenchI : L4::Kobject_t<BenchI, L4::Kobject, 0x42> {
 };
 
 // Interface for the database management and the factory for new benchmark
-// threads.
-struct DbI : L4::Kobject_t<DbI, L4::Kobject, 0x43> {
+// threads. Make sure to reserve one capability slot in this IF.
+struct DbI : L4::Kobject_t<DbI, L4::Kobject, 0x43, L4::Type_info::Demand_t<1>> {
   // Create the database schema.
-  // The table information is serialized into a char array.
-  L4_INLINE_RPC(long, schema, (L4::Ipc::Array<const char>));
+  // The table information as well as database startup parameters are 
+  // serialized in the infopage dataspace, to which the server gains a 
+  // client-provided capability.
+  L4_INLINE_RPC(long, schema, (L4::Ipc::Cap<L4Re::Dataspace>));
+  
   // Spawn a new thread with its own database connection.
   // Returns an IPC gate for communication with this thread.
   L4_INLINE_RPC(long, spawn, (L4::Ipc::Out<L4::Cap<BenchI>>));

@@ -31,6 +31,9 @@ using ycsbc::DB;
 namespace sqlite {
 namespace ipc {
 
+// Server object for the main server (not the worker threads)
+Registry main_server;
+
 // Implements a single benchmark thread, which performs the Read(), Scan(), etc.
 // operations.
 class BenchServer : public L4::Epiface_t<BenchServer, BenchI> {
@@ -89,7 +92,8 @@ public:
 // benchmark threads.
 class DbServer : public L4::Epiface_t<DbServer, DbI> {
   // YCSB SQLite backend which we are testing against.
-  ycsbc::SqliteLibDB db{};
+  // TODO: Delete when tearing down this object
+  ycsbc::SqliteLibDB *db;
   pthread_barrier_t barrier;
 
 public:
@@ -100,12 +104,42 @@ public:
     assert(!pthread_barrier_init(&barrier, NULL, 2));
   }
 
-  long op_schema(DbI::Rights, L4::Ipc::Array_in_buf<char> const &data) {
+  long op_schema(DbI::Rights, L4::Ipc::Snd_fpage buf_cap) {
+    char *map_addr;             // Current position inside the infopage mapping
+
+    // At first, check if we actually received a capability
+    if (! buf_cap.cap_received()) {
+      std::cerr << "Received fpage was not a capability." << std::endl;
+      return(-L4_EACCESS);
+    }
+
+    // Now, map the buffer capability to our infopage (index 0, because we
+    // only expect one capability to be sent)
+    infopage = main_server.rcv_cap<L4Re::Dataspace>(0);
+    if (L4Re::Env::env()->rm()->attach(&infopage_addr, YCSBC_DS_SIZE,
+                                       L4Re::Rm::F::Search_addr |
+                                       L4Re::Rm::F::R,
+                                       L4::Ipc::make_cap_full(infopage)) < 0) {
+      std::cerr << "Failed to map client-provided infopage.";
+      return(-L4_EINVAL);
+    }
+
+    map_addr = infopage_addr;
+    std::size_t fname_size = 0;
+    memcpy(&fname_size, map_addr, sizeof(std::size_t));
+    map_addr += sizeof(std::size_t);
+    
+    std::string fname{};
+    fname.append(map_addr, fname_size);
+    map_addr += fname_size;
+
+    db = new ycsbc::SqliteLibDB(fname);
+
     DB::Tables tables{};
-    Deserializer d{data.data};
+    Deserializer d{map_addr};
 
     d >> tables;
-    db.CreateSchema(tables);
+    db->CreateSchema(tables);
 
     return L4_EOK;
   }
@@ -125,6 +159,12 @@ public:
 
     return L4_EOK;
   }
+
+private:
+  // Dataspace and address for transferring metadata (such as table layout)
+  // from the client to the server
+  L4::Cap<L4Re::Dataspace> infopage;
+  char *infopage_addr;
 };
 
 void registerServer(Registry &registry) {
@@ -138,3 +178,13 @@ void registerServer(Registry &registry) {
 
 } // namespace ipc
 } // namespace sqlite
+
+int main() {
+  std::cout << "SQLite 3 Version: " << SQLITE_VERSION << std::endl;
+
+  sqlite::ipc::registerServer(sqlite::ipc::main_server);
+  std::cout << "Servers registered. Waiting for requests..." << std::endl;
+  sqlite::ipc::main_server.loop();
+
+  return(0);
+}
