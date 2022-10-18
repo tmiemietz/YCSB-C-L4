@@ -41,6 +41,15 @@ public:
       *this << e;
     return *this;
   }
+  // Serialize a std::pair if both components are serializable as well
+  template <class K, class V> inline Serializer &operator<<(
+    std::pair<K, V> const &p) {
+    
+    *this << p.first;
+    *this << p.second;
+
+    return *this;
+  }
 
   // Report the start of the buffer (as given in the constructor).
   inline char const *start() const { return orig_buf; }
@@ -75,6 +84,15 @@ public:
       *this >> e;
       v.push_back(e);
     }
+    return *this;
+  }
+  // Deserialize a std::pair if both components are deserializable as well
+  template <class K, class V> inline Deserializer &operator>>(
+    std::pair<K, V> &p) {
+
+    *this >> p.first;
+    *this >> p.second;
+
     return *this;
   }
 };
