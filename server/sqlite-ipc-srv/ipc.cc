@@ -37,47 +37,69 @@ Registry main_server;
 // Implements a single benchmark thread, which performs the Read(), Scan(), etc.
 // operations.
 class BenchServer : public L4::Epiface_t<BenchServer, BenchI> {
-  // A superpage should be enough to hold the results even for a scan.
-  static constexpr unsigned char SIZE_SHIFT = L4_SUPERPAGESHIFT;
-  static constexpr std::size_t SIZE = 1 << SIZE_SHIFT;
-
   // Registry of this thread. Handles the server loop.
   // The default constructor must not be used from a non-main thread.
   Registry registry{L4::Cap<L4::Thread>{pthread_l4_cap(pthread_self())},
                     L4Re::Env::env()->factory()};
-  // This dataspace holds the memory used for returning results.
-  // FIXME: Dataspace is not freed.
-  L4::Cap<L4Re::Dataspace> ds = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();
-  // Addr of the dataspace.
-  l4_addr_t addr;
+  
+  // Dataspaces received from client for input and output respectively
+  L4::Cap<L4Re::Dataspace> ds_in;
+  char *ds_in_addr = 0;
+  
+  L4::Cap<L4Re::Dataspace> ds_out;
+  char *ds_out_addr = 0;
+
+  // SqliteLibDB object create in the main thread
+  ycsbc::SqliteLibDB *database;
+
+  // Context object returned from SqliteLibDB object
+  void *sqlite_ctx;
 
 public:
-  BenchServer() {
-    if (!ds.is_valid())
-      throw std::runtime_error{"failed to allocate dataspace cap"};
-    if (L4Re::Env::env()->mem_alloc()->alloc(SIZE, ds))
-      throw std::runtime_error{"failed to allocate dataspace"};
-    // Attach the dataspace size-aligned. This allows to send it via a single
-    // flexpage.
-    if (L4Re::Env::env()->rm()->attach(
-            &addr, SIZE, L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW, ds, 0,
-            SIZE_SHIFT))
-      throw std::runtime_error{"failed to attach dataspace"};
+  BenchServer(L4::Cap<L4Re::Dataspace> in, L4::Cap<L4Re::Dataspace> out,
+              ycsbc::SqliteLibDB *db) {
+    ds_in = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();                  
+    L4Re::chkcap(ds_in);                                                     
 
-    // TODO: remove
-    *reinterpret_cast<char *>(addr) = 'X';
-    std::cout << "dataspace addr: " << addr
-              << " stores: " << *reinterpret_cast<char *>(addr) << std::endl;
+    ds_out = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();                 
+    L4Re::chkcap(ds_out); 
+    
+    // Move input capabilities to local cap slots
+    ds_in.move(in);
+    ds_out.move(out);
+
+    database = db;
+
+    // Attach memory windows to this AS
+    // Map new dataspaces into this AS
+    if (L4Re::Env::env()->rm()->attach(&ds_in_addr, YCSBC_DS_SIZE,
+                                       L4Re::Rm::F::Search_addr |
+                                       L4Re::Rm::F::RW,
+                                       L4::Ipc::make_cap_full(ds_in)) < 0) {
+      throw std::runtime_error{"Failed to attach db_in dataspace."};
+    }
+    if (L4Re::Env::env()->rm()->attach(&ds_out_addr, YCSBC_DS_SIZE,
+                                       L4Re::Rm::F::Search_addr |
+                                       L4Re::Rm::F::RW,
+                                       L4::Ipc::make_cap_full(ds_out)) < 0) {
+      throw std::runtime_error{"Failed to attach db_out dataspace."};
+    }
+
+    sqlite_ctx = database->Init();
   }
 
   // Create a new benchmark server running its own server loop on this thread.
-  static void loop(pthread_barrier_t *barrier, L4::Cap<BenchI> *gate) {
+  static void loop(pthread_barrier_t *barrier, L4::Cap<L4Re::Dataspace> *in,
+            L4::Cap<L4Re::Dataspace> *out, L4::Cap<BenchI> *gate,
+            ycsbc::SqliteLibDB *db) {
     // FIXME: server is never freed.
-    auto server = new BenchServer{};
+    auto server = new BenchServer{*in, *out, db};
     // FIXME: Capability is never unregistered.
     L4Re::chkcap(server->registry.registry()->register_obj(server));
 
     *gate = server->obj_cap();
+
+    std::cout << "Spawned new server thread." << std::endl;;
 
     // Signal that gate is now set.
     int rc = pthread_barrier_wait(barrier);
@@ -93,7 +115,7 @@ public:
 class DbServer : public L4::Epiface_t<DbServer, DbI> {
   // YCSB SQLite backend which we are testing against.
   // TODO: Delete when tearing down this object
-  ycsbc::SqliteLibDB *db;
+  ycsbc::SqliteLibDB *db = nullptr;
   pthread_barrier_t barrier;
 
 public:
@@ -144,11 +166,24 @@ public:
     return L4_EOK;
   }
 
-  long op_spawn(DbI::Rights, L4::Ipc::Cap<BenchI> &res) {
+  long op_spawn(DbI::Rights, L4::Ipc::Snd_fpage in_buf,
+                L4::Ipc::Snd_fpage out_buf, L4::Ipc::Cap<BenchI> &res) {
     L4::Cap<BenchI> gate;
+    
+    // Check if we actually received capabilities
+    if (! in_buf.cap_received() || ! out_buf.cap_received()) {
+      std::cerr << "Received fpages were not capabilities." << std::endl;
+      return(-L4_EACCESS);
+    }
+
+    // Construct the memory buffer caps from the input arguments
+    L4::Cap<L4Re::Dataspace> in  = main_server.rcv_cap<L4Re::Dataspace>(0);
+    L4::Cap<L4Re::Dataspace> out = main_server.rcv_cap<L4Re::Dataspace>(1);
+
     // Thread object must not be constructed on the stack.
     // FIXME: Cleanup thread object.
-    new std::thread{&BenchServer::loop, &barrier, &gate};
+    new std::thread{&BenchServer::loop, &barrier, &in, &out, 
+                    &gate, std::ref(db)};
 
     // Wait for other thread to set gate.
     int rc = pthread_barrier_wait(&barrier);

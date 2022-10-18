@@ -1,6 +1,6 @@
 /******************************************************************************
  *                                                                            *
- * sqlite_lib_db.cc - A database backend using the sqlite IPC server.         *
+ * sqlite_ipc_db.cc - A database backend using the sqlite IPC server.         *
  *                                                                            *
  * Author: Till Miemietz <till.miemietz@barkhauseninstitut.org>               *
  * Author: Viktor Reusch                                                      *
@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
+#include <memory>                   // unique_ptr etc.
 #include <l4/re/error_helper>       // L4Re::Chkcap and friends
 #include <l4/re/util/cap_alloc>
 #include <l4/re/rm>
@@ -29,6 +30,39 @@ using std::string;
 using std::vector;
 
 namespace ycsbc {
+
+/*
+ * Context structure for clients of the sqlite IPC server.
+ */
+struct IpcCltCtx {
+    // Capability to one of the benchmarks threads of the server
+    L4::Cap<BenchI> bench;
+
+    // Dataspace for transmitting input parameters of benchmark functions
+    L4::Cap<L4Re::Dataspace> ds_in;
+    char *ds_in_addr = 0;
+
+    // Dataspace for receiving output of benchmark functions
+    L4::Cap<L4Re::Dataspace> ds_out;
+    char *ds_out_addr = 0;
+    
+    IpcCltCtx() = default;
+
+    ~IpcCltCtx() {
+        // TODO: Release resources
+    }
+
+    IpcCltCtx(const IpcCltCtx&) = delete;
+    IpcCltCtx(IpcCltCtx&&) = delete;
+
+    IpcCltCtx& operator=(const IpcCltCtx&) = delete;
+    IpcCltCtx& operator=(IpcCltCtx&&) = delete;
+
+    static IpcCltCtx &cast(void *ctx) {
+        return *reinterpret_cast<IpcCltCtx *>(ctx);
+    }
+
+};
 
 /* Initialize IPC gate capability. */
 SqliteIpcDB::SqliteIpcDB(const string &filename) :
@@ -88,15 +122,47 @@ void SqliteIpcDB::CreateSchema(DB::Tables tables) {
 
 /* Create a new session for this thread at the SQLite server. */
 void *SqliteIpcDB::Init() {
-  // FIXME: Free capability.
-  L4::Cap<BenchI> bench = L4Re::Util::cap_alloc.alloc<BenchI>();
-  L4Re::chkcap(bench);
+  std::unique_ptr<IpcCltCtx> ctx{new IpcCltCtx{}};
+
+  // Allocate capabilities of context
+  ctx->bench = L4Re::Util::cap_alloc.alloc<BenchI>();
+  L4Re::chkcap(ctx->bench);
+
+  ctx->ds_in = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();
+  L4Re::chkcap(ctx->ds_in);
+
+  ctx->ds_out = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();
+  L4Re::chkcap(ctx->ds_out);
+
+  // Allocate the new dataspaces for input and output
+  if (L4Re::Env::env()->mem_alloc()->alloc(YCSBC_DS_SIZE, ctx->ds_in) < 0) {
+    throw std::runtime_error{"Failed to allocate db_in dataspace."};
+  }
+  if (L4Re::Env::env()->mem_alloc()->alloc(YCSBC_DS_SIZE, ctx->ds_out) < 0) {
+    throw std::runtime_error{"Failed to allocate db_out dataspace."};
+  }
+
+  // Map new dataspaces into this AS
+  if (L4Re::Env::env()->rm()->attach(&ctx->ds_in_addr, YCSBC_DS_SIZE,
+                                     L4Re::Rm::F::Search_addr |
+                                     L4Re::Rm::F::RW,
+                                     L4::Ipc::make_cap_rw(ctx->ds_in)) < 0) {
+    throw std::runtime_error{"Failed to attach db_in dataspace."};
+  }
+  if (L4Re::Env::env()->rm()->attach(&ctx->ds_out_addr, YCSBC_DS_SIZE,
+                                     L4Re::Rm::F::Search_addr |
+                                     L4Re::Rm::F::RW,
+                                     L4::Ipc::make_cap_rw(ctx->ds_out)) < 0) {
+    throw std::runtime_error{"Failed to attach db_out dataspace."};
+  }
 
   // Send spawn command to server.
-  assert(server->spawn(bench) == L4_EOK);
+  assert(server->spawn(L4::Ipc::Cap<L4Re::Dataspace>(ctx->ds_in),
+                       L4::Ipc::Cap<L4Re::Dataspace>(ctx->ds_out),
+                       ctx->bench) == L4_EOK);
 
   std::cout << "New thread initialized." << std::endl;
-  return nullptr;
+  return(ctx.release());
 }
 
 int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,

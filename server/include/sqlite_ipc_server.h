@@ -25,8 +25,8 @@ struct BenchI : L4::Kobject_t<BenchI, L4::Kobject, 0x42> {
 };
 
 // Interface for the database management and the factory for new benchmark
-// threads. Make sure to reserve one capability slot in this IF.
-struct DbI : L4::Kobject_t<DbI, L4::Kobject, 0x43, L4::Type_info::Demand_t<1>> {
+// threads. Make sure to reserve two capability slots in this IF.
+struct DbI : L4::Kobject_t<DbI, L4::Kobject, 0x43, L4::Type_info::Demand_t<2>> {
   // Create the database schema.
   // The table information as well as database startup parameters are 
   // serialized in the infopage dataspace, to which the server gains a 
@@ -35,7 +35,9 @@ struct DbI : L4::Kobject_t<DbI, L4::Kobject, 0x43, L4::Type_info::Demand_t<1>> {
   
   // Spawn a new thread with its own database connection.
   // Returns an IPC gate for communication with this thread.
-  L4_INLINE_RPC(long, spawn, (L4::Ipc::Out<L4::Cap<BenchI>>));
+  L4_INLINE_RPC(long, spawn, (L4::Ipc::Cap<L4Re::Dataspace>, 
+                              L4::Ipc::Cap<L4Re::Dataspace>,
+                              L4::Ipc::Out<L4::Cap<BenchI>>));
   typedef L4::Typeid::Rpcs<schema_t, spawn_t> Rpcs;
 };
 
