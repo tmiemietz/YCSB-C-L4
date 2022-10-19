@@ -21,15 +21,27 @@ static const size_t YCSBC_DS_SIZE = 1 << 20;
 // IPC interface to a single benchmark thread, which performs the Read(),
 // Scan(), etc. operations.
 struct BenchI : L4::Kobject_t<BenchI, L4::Kobject, 0x42> {
-  // Performs a read operation by collecting data from the input dataspace
+  // Performs a read operation by collecting parameters from the input dataspace
   // handed over previously during the spawn procedure
   L4_INLINE_RPC(long, read, ());
 
+  // Performs a scan operation by collecting parameters from the input dataspace
+  // handed over previously during the spawn procedure
+  L4_INLINE_RPC(long, scan, ());
+  
   // Performs an insert operation. Parameters are collected from the input
   // Dataspace
   L4_INLINE_RPC(long, insert, ());
   
-  typedef L4::Typeid::Rpcs<read_t, insert_t> Rpcs;
+  // Performs an update operation. Parameters are collected from the input
+  // Dataspace
+  L4_INLINE_RPC(long, update, ());
+  
+  // Performs a delete operation. Parameters are collected from the input
+  // Dataspace
+  L4_INLINE_RPC(long, del, ());
+  
+  typedef L4::Typeid::Rpcs<read_t, scan_t, insert_t, update_t, del_t> Rpcs;
 };
 
 // Interface for the database management and the factory for new benchmark

@@ -202,14 +202,52 @@ int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,
 int SqliteIpcDB::Scan(void *ctx_, const string &table, const string &key,
                       int len, const vector<std::string> *fields,
                       vector<std::vector<KVPair>> &result) {
-  // TODO
-  throw std::runtime_error{"unimplemented"};
+  auto &ctx = IpcCltCtx::cast(ctx_);
+
+  // First, reset the input page for the server
+  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
+  
+  // Serialize everything into the input dataspace
+  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  s << table;
+  s << key;
+  s << len;
+  // We must transfer anything at all, even if it is just an empty vector
+  if (fields != nullptr)
+    s << *fields;
+  else
+    s << std::vector<std::string>(0);
+
+  // Call the server
+  assert(ctx.bench->scan() == L4_EOK);
+
+  // Deserialize the operation results
+  Deserializer d{ctx.ds_out_addr};
+  d >> result;
+
+  if (result.size() == 0)
+    return(kErrorNoData);
+  else
+    return(kOK);
 }
 
 int SqliteIpcDB::Update(void *ctx_, const string &table, const string &key,
                         vector<KVPair> &values) {
-  // TODO
-  throw std::runtime_error{"unimplemented"};
+  auto &ctx = IpcCltCtx::cast(ctx_);
+
+  // First, reset the input page for the server
+  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
+  
+  // Serialize everything into the input dataspace
+  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  s << table;
+  s << key;
+  s << values;
+
+  // Call the server
+  assert(ctx.bench->update() == L4_EOK);
+
+  return(kOK);
 }
 
 int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
@@ -232,8 +270,20 @@ int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
 }
 
 int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
-  // TODO
-  throw std::runtime_error{"unimplemented"};
+  auto &ctx = IpcCltCtx::cast(ctx_);
+
+  // First, reset the input page for the server
+  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
+  
+  // Serialize everything into the input dataspace
+  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  s << table;
+  s << key;
+
+  // Call the server
+  assert(ctx.bench->del() == L4_EOK);
+
+  return(kOK);
 }
 
 } // namespace ycsbc

@@ -139,6 +139,38 @@ public:
     return(L4_EOK);
   }
   
+  // Scan for some values from the database
+  long op_scan(BenchI::Rights) {
+    // Placeholder variables, will be filled from input page
+    std::string table;
+    std::string key;
+    int len = 0;
+    std::vector<std::string> fields = std::vector<std::string>(0);
+    
+    // Output vector, sent back to client after operation
+    std::vector<std::vector<DB::KVPair>> result;
+
+    // Deserialize input from input dataspace
+    Deserializer d{ds_in_addr};
+
+    d >> table;
+    d >> key;
+    d >> len;
+    d >> fields;
+   
+    if (database->Scan(sqlite_ctx, table, key, len, &fields, result) != 
+        DB::kOK) {
+      return(-L4_EINVAL);
+    }
+
+    // Put result into output dataspace
+    memset(ds_out_addr, '\0', YCSBC_DS_SIZE);
+    Serializer s{ds_out_addr, YCSBC_DS_SIZE};
+    s << result;
+
+    return(L4_EOK);
+  }
+
   // Insert a value into the database
   long op_insert(BenchI::Rights) {
     // Placeholder variables, will be filled from input page
@@ -154,6 +186,46 @@ public:
     d >> values;
 
     if (database->Insert(sqlite_ctx, table, key, values) != DB::kOK) {
+      return(-L4_EINVAL);
+    }
+    
+    return(L4_EOK);
+  }
+  
+  // Update a value in the database
+  long op_update(BenchI::Rights) {
+    // Placeholder variables, will be filled from input page
+    std::string table;
+    std::string key;
+    std::vector<DB::KVPair> values;
+    
+    // Deserialize input from input dataspace
+    Deserializer d{ds_in_addr};
+
+    d >> table;
+    d >> key;
+    d >> values;
+
+    if (database->Update(sqlite_ctx, table, key, values) != DB::kOK) {
+      return(-L4_EINVAL);
+    }
+    
+    return(L4_EOK);
+  }
+  
+  // Deletes a value from the database
+  long op_del(BenchI::Rights) {
+    // Placeholder variables, will be filled from input page
+    std::string table;
+    std::string key;
+    
+    // Deserialize input from input dataspace
+    Deserializer d{ds_in_addr};
+
+    d >> table;
+    d >> key;
+
+    if (database->Delete(sqlite_ctx, table, key) != DB::kOK) {
       return(-L4_EINVAL);
     }
     
