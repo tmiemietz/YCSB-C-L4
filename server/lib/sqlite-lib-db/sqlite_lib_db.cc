@@ -229,12 +229,12 @@ int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
         {
             // get number of result columns returned by the sqlite query
             int col_cnt = sqlite3_data_count(pStmt);    
-        
+       
             for (int i = 0; i < col_cnt; i++) {
                 string col_name(reinterpret_cast<const char *>(
                                 sqlite3_column_name(pStmt, i)));
-
-                if (fields == nullptr ||
+                
+                if (fields == nullptr || fields->size() == 0 ||
                     std::find(fields->begin(), fields->end(), col_name) !=
                     fields->end()) {
                     string col_content(reinterpret_cast<const char *>(
@@ -318,7 +318,7 @@ int SqliteLibDB::Scan(void *ctx_, const string &table, const string &key,
                 string col_name(reinterpret_cast<const char *>(
                                 sqlite3_column_name(pStmt, i)));
 
-                if (fields == nullptr ||
+                if (fields == nullptr || fields->size() == 0 || 
                     std::find(fields->begin(), fields->end(), col_name) !=
                     fields->end()) {
                     string col_content(reinterpret_cast<const char *>(
