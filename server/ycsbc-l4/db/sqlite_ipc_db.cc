@@ -50,7 +50,7 @@ struct IpcCltCtx {
     IpcCltCtx() = default;
 
     ~IpcCltCtx() {
-        // TODO: Release resources
+        // Resource deallocation is currently done inside SqliteIpcDB::Close().
     }
 
     IpcCltCtx(const IpcCltCtx&) = delete;
@@ -284,6 +284,44 @@ int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
   assert(ctx.bench->del() == L4_EOK);
 
   return(kOK);
+}
+
+// Signals the end of the connection to the Sqlite IPC server and destroys the
+// context associated with this worker thread. This also involves freeing all
+// dataspaces used for communication with the server.
+void SqliteIpcDB::Close(void *ctx_) {
+  auto &ctx = IpcCltCtx::cast(ctx_);
+
+  if (ctx.bench->close() != L4_EOK) {
+    std::cerr << "WARNING: Failed to properly shut down connection to server."
+              << std::endl;
+  }
+
+  // Detach communication mappings from this address space
+  if (L4Re::Env::env()->rm()->detach(ctx.ds_in_addr, &ctx.ds_in) < 0) {
+    std::cerr << "Failed to detach input dataspace." << std::endl;
+    return;
+  }
+  if (L4Re::Env::env()->rm()->detach(ctx.ds_out_addr, &ctx.ds_out) < 0) {
+    std::cerr << "Failed to detach output dataspace." << std::endl;
+    return;
+  }
+
+  // Return the memory of the dataspaces
+  // Note that we could have also directly disabled the derived mappings in
+  // the server process by adding L4_FP_ALL_SPACES to the flags. However, I
+  // thought that it would be nice to notify the server anyway, so we trust it
+  // to do the unmapping itself.
+  L4Re::Env::env()->task()->unmap(ctx.ds_in.fpage(), L4_FP_DELETE_OBJ);
+  L4Re::Env::env()->task()->unmap(ctx.ds_out.fpage(), L4_FP_DELETE_OBJ);
+
+  // Free the caps associated with the communication mappings
+  L4Re::Util::cap_alloc.free(ctx.ds_in);
+  L4Re::Util::cap_alloc.free(ctx.ds_out);
+
+  delete &ctx;
+
+  std::cerr << "Benchmark thread terminated." << std::endl;
 }
 
 } // namespace ycsbc

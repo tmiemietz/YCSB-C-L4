@@ -28,10 +28,12 @@ public:
     SqliteIpcDB(const std::string &filename = std::string(":memory:"));
     // FIXME: Add destructor.
 
+    // Meta operations for database and/or connection management
     void CreateSchema(DB::Tables tables) override;
     void *Init() override;
-    // FIXME: Implement Close().
+    void Close(void *ctx) override;
 
+    // Database (benchmark) operations
     int Read(void *ctx, const std::string &table, const std::string &key,
              const std::vector<std::string> *fields,
              std::vector<KVPair> &result) override;

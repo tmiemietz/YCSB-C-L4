@@ -40,8 +40,12 @@ struct BenchI : L4::Kobject_t<BenchI, L4::Kobject, 0x42> {
   // Performs a delete operation. Parameters are collected from the input
   // Dataspace
   L4_INLINE_RPC(long, del, ());
-  
-  typedef L4::Typeid::Rpcs<read_t, scan_t, insert_t, update_t, del_t> Rpcs;
+ 
+  // Unmaps client-provided dataspace resources and terminates this thread.
+  L4_INLINE_RPC(long, close, ());
+
+  typedef L4::Typeid::Rpcs<read_t, scan_t, insert_t, update_t, del_t,
+                           close_t> Rpcs;
 };
 
 // Interface for the database management and the factory for new benchmark

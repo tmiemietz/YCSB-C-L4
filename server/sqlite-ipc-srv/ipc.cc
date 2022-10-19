@@ -231,6 +231,27 @@ public:
     
     return(L4_EOK);
   }
+
+  // Unmaps the client-provided memory windows and terminates the server
+  long op_close(BenchI::Rights) {
+    // Detach client mappings
+    if (L4Re::Env::env()->rm()->detach(ds_in_addr, &ds_in) < 0) {
+        std::cerr << "Failed to detach input dataspace." << std::endl;
+        return(-L4_EINVAL);
+    }
+    if (L4Re::Env::env()->rm()->detach(ds_out_addr, &ds_out) < 0) {
+        std::cerr << "Failed to detach output dataspace." << std::endl;
+        return(-L4_EINVAL);
+    }
+
+    // Free the caps associated with the memory mappings
+    L4Re::Util::cap_alloc.free(ds_in);
+    L4Re::Util::cap_alloc.free(ds_out);
+
+    // TODO: Actually terminate this bench server thread
+
+    return(L4_EOK);
+  }
 };
 
 // Implements the interface for the database management and a factory for new
