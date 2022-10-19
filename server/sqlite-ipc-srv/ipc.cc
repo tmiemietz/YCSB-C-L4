@@ -25,6 +25,7 @@
 #include "sqlite_lib_db.h"
 #include "utils.h"
 
+using serializer::Serializer;
 using serializer::Deserializer;
 using ycsbc::DB;
 
@@ -107,6 +108,56 @@ public:
 
     // Start waiting for communication.
     server->registry.loop();
+  }
+
+  // Read some value from the database
+  long op_read(BenchI::Rights) {
+    // Placeholder variables, will be filled from input page
+    std::string table;
+    std::string key;
+    std::vector<std::string> fields = std::vector<std::string>(0);
+    
+    // Output vector, sent back to client after operation
+    std::vector<DB::KVPair> result;
+
+    // Deserialize input from input dataspace
+    Deserializer d{ds_in_addr};
+
+    d >> table;
+    d >> key;
+    d >> fields;
+   
+    if (database->Read(sqlite_ctx, table, key, &fields, result) != DB::kOK) {
+      return(-L4_EINVAL);
+    }
+
+    // Put result into output dataspace
+    memset(ds_out_addr, '\0', YCSBC_DS_SIZE);
+    Serializer s{ds_out_addr, YCSBC_DS_SIZE};
+    s << result;
+
+    return(L4_EOK);
+  }
+  
+  // Insert a value into the database
+  long op_insert(BenchI::Rights) {
+    // Placeholder variables, will be filled from input page
+    std::string table;
+    std::string key;
+    std::vector<DB::KVPair> values;
+    
+    // Deserialize input from input dataspace
+    Deserializer d{ds_in_addr};
+
+    d >> table;
+    d >> key;
+    d >> values;
+
+    if (database->Insert(sqlite_ctx, table, key, values) != DB::kOK) {
+      return(-L4_EINVAL);
+    }
+    
+    return(L4_EOK);
   }
 };
 

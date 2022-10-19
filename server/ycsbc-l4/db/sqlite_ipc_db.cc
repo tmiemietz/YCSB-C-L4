@@ -23,6 +23,7 @@
 #include <sys/ipc.h>
 
 using serializer::Serializer;
+using serializer::Deserializer;
 using sqlite::ipc::YCSBC_DS_SIZE;
 using sqlite::ipc::BenchI;
 using sqlite::ipc::DbI;
@@ -156,9 +157,11 @@ void *SqliteIpcDB::Init() {
     throw std::runtime_error{"Failed to attach db_out dataspace."};
   }
 
-  // Send spawn command to server.
-  assert(server->spawn(L4::Ipc::Cap<L4Re::Dataspace>(ctx->ds_in),
-                       L4::Ipc::Cap<L4Re::Dataspace>(ctx->ds_out),
+  // Send spawn command to server. Pay attiontion to the fact that we have to
+  // explicitely make read-write capabilities in order for the sender to be
+  // able to write to the memory that we send him!
+  assert(server->spawn(L4::Ipc::make_cap_rw(ctx->ds_in),
+                       L4::Ipc::make_cap_rw(ctx->ds_out),
                        ctx->bench) == L4_EOK);
 
   std::cout << "New thread initialized." << std::endl;
@@ -168,8 +171,32 @@ void *SqliteIpcDB::Init() {
 int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,
                       const vector<std::string> *fields,
                       vector<KVPair> &result) {
-  // TODO
-  throw std::runtime_error{"unimplemented"};
+  auto &ctx = IpcCltCtx::cast(ctx_);
+
+  // First, reset the input page for the server
+  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
+  
+  // Serialize everything into the input dataspace
+  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  s << table;
+  s << key;
+  // We must transfer anything at all, even if it is just an empty vector
+  if (fields != nullptr)
+    s << *fields;
+  else
+    s << std::vector<std::string>(0);
+
+  // Call the server
+  assert(ctx.bench->read() == L4_EOK);
+
+  // Deserialize the operation results
+  Deserializer d{ctx.ds_out_addr};
+  d >> result;
+
+  if (result.size() == 0)
+    return(kErrorNoData);
+  else
+    return(kOK);
 }
 
 int SqliteIpcDB::Scan(void *ctx_, const string &table, const string &key,
@@ -187,8 +214,21 @@ int SqliteIpcDB::Update(void *ctx_, const string &table, const string &key,
 
 int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
                         vector<KVPair> &values) {
-  // TODO
-  throw std::runtime_error{"unimplemented"};
+  auto &ctx = IpcCltCtx::cast(ctx_);
+
+  // First, reset the input page for the server
+  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
+  
+  // Serialize everything into the input dataspace
+  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  s << table;
+  s << key;
+  s << values;
+
+  // Call the server
+  assert(ctx.bench->insert() == L4_EOK);
+
+  return(kOK);
 }
 
 int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
