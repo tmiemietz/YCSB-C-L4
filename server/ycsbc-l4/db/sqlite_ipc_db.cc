@@ -163,9 +163,6 @@ int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,
                       vector<KVPair> &result) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
   s << table;
@@ -193,9 +190,6 @@ int SqliteIpcDB::Scan(void *ctx_, const string &table, const string &key,
                       int len, const vector<std::string> *fields,
                       vector<std::vector<KVPair>> &result) {
   auto &ctx = IpcCltCtx::cast(ctx_);
-
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
   
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
@@ -225,9 +219,6 @@ int SqliteIpcDB::Update(void *ctx_, const string &table, const string &key,
                         vector<KVPair> &values) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
   s << table;
@@ -244,9 +235,6 @@ int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
                         vector<KVPair> &values) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
   s << table;
@@ -262,9 +250,6 @@ int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
 int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
   s << table;
