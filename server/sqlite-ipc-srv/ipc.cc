@@ -132,6 +132,7 @@ public:
     }
 
     // Put result into output dataspace
+    memset(ds_out_addr, '\0', YCSBC_DS_SIZE);
     Serializer s{ds_out_addr, YCSBC_DS_SIZE};
     s << result;
 
@@ -163,6 +164,7 @@ public:
     }
 
     // Put result into output dataspace
+    memset(ds_out_addr, '\0', YCSBC_DS_SIZE);
     Serializer s{ds_out_addr, YCSBC_DS_SIZE};
     s << result;
 
