@@ -271,8 +271,6 @@ public:
   }
 
   long op_schema(DbI::Rights, L4::Ipc::Snd_fpage buf_cap) {
-    char *map_addr;             // Current position inside the infopage mapping
-
     // At first, check if we actually received a capability
     if (! buf_cap.cap_received()) {
       std::cerr << "Received fpage was not a capability." << std::endl;
@@ -290,19 +288,13 @@ public:
       return(-L4_EINVAL);
     }
 
-    map_addr = infopage_addr;
-    std::size_t fname_size = 0;
-    memcpy(&fname_size, map_addr, sizeof(std::size_t));
-    map_addr += sizeof(std::size_t);
-    
-    std::string fname{};
-    fname.append(map_addr, fname_size);
-    map_addr += fname_size;
+    Deserializer d{infopage_addr};
 
+    std::string fname{};
+    d >> fname;
     db = new ycsbc::SqliteLibDB(fname);
 
     DB::Tables tables{};
-    Deserializer d{map_addr};
 
     d >> tables;
     db->CreateSchema(tables);

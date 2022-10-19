@@ -98,19 +98,9 @@ SqliteIpcDB::SqliteIpcDB(const string &filename) :
 
 /* Send IPC for creating the schema. */
 void SqliteIpcDB::CreateSchema(DB::Tables tables) {
-  char *map_ptr;                // Pointer for interating through infopage
-
-  // At first, write size of filename as well as the filename itself to
-  // the infopage, followed by a serialized table
-  std::size_t fname_size = filename.size();
-  map_ptr = db_infopage_addr;
-  memcpy(map_ptr, &fname_size, sizeof(std::size_t));
-  map_ptr += sizeof(std::size_t);
-  memcpy(map_ptr, filename.c_str(), fname_size);
-  map_ptr += fname_size;
-
-  // Funnel the schema description into the infopage
-  Serializer s{map_ptr, YCSBC_DS_SIZE - fname_size - sizeof(std::size_t)};
+  // Funnel the filename and the schema description into the infopage.
+  Serializer s{db_infopage_addr, YCSBC_DS_SIZE};
+  s << filename;
   s << tables;
 
   // Call the server
