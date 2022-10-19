@@ -28,6 +28,8 @@ public:
   // Create a new serializer for the buffer `buf` with length `len`.
   Serializer(char *buf, std::size_t len);
 
+  // Serialize an int.
+  Serializer &operator<<(int);
   // Serialize an std::size_t.
   Serializer &operator<<(std::size_t);
   // Serialize a string.
@@ -66,6 +68,8 @@ public:
   // accesses should never overflow.
   Deserializer(char const *buf);
 
+  // Deserialize an int.
+  Deserializer &operator>>(int &);
   // Deserialize an std::size_t.
   Deserializer &operator>>(std::size_t &);
   // Deserialize a string.

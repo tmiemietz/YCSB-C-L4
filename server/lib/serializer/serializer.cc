@@ -16,6 +16,11 @@ using ycsbc::Table;
 Serializer::Serializer(char *buf, std::size_t len)
     : orig_buf{buf}, buf{buf}, end{buf + len} {}
 
+Serializer &Serializer::operator<<(int i) {
+  serialize(reinterpret_cast<char const *>(&i), sizeof(i));
+  return *this;
+}
+
 Serializer &Serializer::operator<<(std::size_t n) {
   serialize(reinterpret_cast<char const *>(&n), sizeof(n));
   return *this;
@@ -44,6 +49,12 @@ void Serializer::serialize(char const *bytes, std::size_t n) {
 }
 
 Deserializer::Deserializer(char const *buf) : buf{buf} {}
+
+Deserializer &Deserializer::operator>>(int &i) {
+  std::memcpy(&i, buf, sizeof(i));
+  buf += sizeof(i);
+  return *this;
+}
 
 Deserializer &Deserializer::operator>>(std::size_t &n) {
   std::memcpy(&n, buf, sizeof(n));
