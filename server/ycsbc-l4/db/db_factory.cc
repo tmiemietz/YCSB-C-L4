@@ -13,6 +13,7 @@
 #include "db/lock_stl_db.h"
 #include "sqlite_lib_db.h"
 #include "sqlite_ipc_db.h"
+#include "sqlite_shm_db.h"
 
 using namespace std;
 using ycsbc::DB;
@@ -30,6 +31,9 @@ DB* DBFactory::CreateDB(utils::Properties &props) {
   }
   else if (props["dbname"] == "sqlite_ipc") {
     return new SqliteIpcDB;
+  }
+  else if (props["dbname"] == "sqlite_shm") {
+    return new SqliteShmDB;
   }
   else 
     return NULL;

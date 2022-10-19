@@ -27,6 +27,7 @@ SRC_CC		= ycsbc-l4.cc \
 			  core/core_workload.cc \
 			  db/db_factory.cc \
 			  db/hashtable_db.cc \
-			  db/sqlite_ipc_db.cc
+			  db/sqlite_ipc_db.cc \
+			  db/sqlite_shm_db.cc
 
 include $(L4DIR)/mk/prog.mk
