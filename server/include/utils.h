@@ -13,6 +13,10 @@
 
 namespace sqlite {
 
+// Standard size for datasapces used for exchanging information during the      
+// benchmark, currently set to 1 MiB.                                           
+static const size_t YCSBC_DS_SIZE = 1 << 20;
+
 typedef L4Re::Util::Registry_server<L4Re::Util::Br_manager_hooks> Registry;
 
 } // namespace sqlite

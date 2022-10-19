@@ -9,6 +9,7 @@
 
 #include "sqlite_ipc_db.h"          // Class definitions for sqlite_ipc_db
 #include "serializer.h"
+#include "utils.h"
 
 #include <array>
 #include <assert.h>
@@ -24,7 +25,7 @@
 
 using serializer::Serializer;
 using serializer::Deserializer;
-using sqlite::ipc::YCSBC_DS_SIZE;
+using sqlite::YCSBC_DS_SIZE;
 using sqlite::ipc::BenchI;
 using sqlite::ipc::DbI;
 using std::string;
