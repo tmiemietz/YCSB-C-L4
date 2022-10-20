@@ -14,10 +14,6 @@
 namespace sqlite {
 namespace ipc {
 
-// Standard size for datasapces used for exchanging information during the      
-// benchmark, currently set to 1 MiB.                                           
-static const size_t YCSBC_DS_SIZE = 1 << 20; 
-
 // IPC interface to a single benchmark thread, which performs the Read(),
 // Scan(), etc. operations.
 struct BenchI : L4::Kobject_t<BenchI, L4::Kobject, 0x42> {

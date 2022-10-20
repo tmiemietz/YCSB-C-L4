@@ -31,6 +31,7 @@ this holds for the following database backends:
 | Database Backend | Server         | Location Inside This Repo |
 |------------------|----------------|---------------------------|
 | sqlite\_ipc      | sqlite-ipc-srv | server/sqlite-ipc-srv     |
+| sqlite\_shm      | sqlite-shm-srv | server/sqlite-shm-srv     |
 
 See the respective subdirectories for detailed instructions about the single
 backend servers.
@@ -95,3 +96,27 @@ etc.) is equal to that of the library version of `sqlite`.
 - Required capabilities for ycsbc-l4:
     - `ipc`: Client-side end of a communication channel to the Sqlite IPC 
        server.
+
+##### SqliteShm DB
+
+Sqlite database instance that runs in a different process. The communication
+between the benchmark process and the `sqlite_shm` server is mainly done via
+shared memory (dataspaces).
+Only the dataspace capabilities are exchanged via IPC gates.
+The kind of operation to perform, all parameters needed for this database
+operation, and the results of any queries are transmitted through shared memory
+windows that are established upon startup of a benchmark thread.
+The first byte of these dataspaces is used to notify the other side about new
+messages.
+A new message is detected by busy-waiting on this specific byte.
+Note that for each thread of the benchmark client, a corresponding handler
+thread on the server side will be spawned.
+Since the server internally uses the same library for accessing `sqlite` as the
+`sqlite_lib` backend does, the configuration of `sqlite` (database location
+etc.) is equal to that of the library version of `sqlite`.
+
+- Database backend name: `sqlite_shm`
+- Special options: none
+- Required capabilities for ycsbc-l4:
+    - `shm`: Client-side end of a communication channel to the Sqlite shared
+      memory server.

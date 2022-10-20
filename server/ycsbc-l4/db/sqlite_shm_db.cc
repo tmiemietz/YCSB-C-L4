@@ -1,13 +1,13 @@
 /******************************************************************************
  *                                                                            *
- * sqlite_ipc_db.cc - A database backend using the sqlite IPC server.         *
+ * sqlite_shm_db.cc - A database backend using the sqlite shared mem server.  *
  *                                                                            *
  * Author: Till Miemietz <till.miemietz@barkhauseninstitut.org>               *
  * Author: Viktor Reusch                                                      *
  *                                                                            *
  ******************************************************************************/
 
-#include "sqlite_ipc_db.h"          // Class definitions for sqlite_ipc_db
+#include "sqlite_shm_db.h" // Class definitions for sqlite_shm_db
 #include "serializer.h"
 #include "utils.h"
 
@@ -16,18 +16,18 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
-#include <memory>                   // unique_ptr etc.
-#include <l4/re/error_helper>       // L4Re::Chkcap and friends
-#include <l4/re/util/cap_alloc>
+#include <l4/re/error_helper> // L4Re::Chkcap and friends
 #include <l4/re/rm>
+#include <l4/re/util/cap_alloc>
+#include <l4/util/util.h> // l4_sleep()
+#include <memory>         // unique_ptr etc.
 #include <stdexcept>
 #include <sys/ipc.h>
 
-using serializer::Serializer;
 using serializer::Deserializer;
+using serializer::Serializer;
 using sqlite::YCSBC_DS_SIZE;
-using sqlite::ipc::BenchI;
-using sqlite::ipc::DbI;
+using sqlite::shm::DbI;
 using std::string;
 using std::vector;
 
@@ -37,43 +37,61 @@ namespace ycsbc {
  * Context structure for clients of the sqlite IPC server.
  */
 struct IpcCltCtx {
-    // Capability to one of the benchmarks threads of the server
-    L4::Cap<BenchI> bench;
+  // Dataspace for transmitting input parameters of benchmark functions
+  L4::Cap<L4Re::Dataspace> ds_in;
+  char *ds_in_addr = 0;
 
-    // Dataspace for transmitting input parameters of benchmark functions
-    L4::Cap<L4Re::Dataspace> ds_in;
-    char *ds_in_addr = 0;
+  // Dataspace for receiving output of benchmark functions
+  L4::Cap<L4Re::Dataspace> ds_out;
+  char *ds_out_addr = 0;
 
-    // Dataspace for receiving output of benchmark functions
-    L4::Cap<L4Re::Dataspace> ds_out;
-    char *ds_out_addr = 0;
-    
-    IpcCltCtx() = default;
+  IpcCltCtx() = default;
 
-    ~IpcCltCtx() {
-        // Resource deallocation is currently done inside SqliteIpcDB::Close().
+  ~IpcCltCtx() {
+    // Resource deallocation is currently done inside SqliteShmDB::Close().
+  }
+
+  IpcCltCtx(const IpcCltCtx &) = delete;
+  IpcCltCtx(IpcCltCtx &&) = delete;
+
+  IpcCltCtx &operator=(const IpcCltCtx &) = delete;
+  IpcCltCtx &operator=(IpcCltCtx &&) = delete;
+
+  Serializer serializer() const {
+    return std::move(Serializer{ds_in_addr + 1, YCSBC_DS_SIZE - 1});
+  }
+
+  // Sends the message to the other side and waits for a response.
+  Deserializer call(char opcode) const {
+    // Notify other side about message.
+    __atomic_store_n(ds_in_addr, opcode, __ATOMIC_RELEASE);
+
+    // Wait for incoming message.
+    while (!(__atomic_load_n(ds_out_addr, __ATOMIC_ACQUIRE))) {
+      // Use PAUSE to hint a spin-wait loop. This should use YIELD on ARM.
+      __builtin_ia32_pause();
+      // The program hangs without this line.
+      l4_sleep(1);
     }
 
-    IpcCltCtx(const IpcCltCtx&) = delete;
-    IpcCltCtx(IpcCltCtx&&) = delete;
+    // Reset notification byte.
+    *ds_out_addr = 0;
 
-    IpcCltCtx& operator=(const IpcCltCtx&) = delete;
-    IpcCltCtx& operator=(IpcCltCtx&&) = delete;
+    return std::move(Deserializer{ds_out_addr + 1});
+  }
 
-    static IpcCltCtx &cast(void *ctx) {
-        return *reinterpret_cast<IpcCltCtx *>(ctx);
-    }
-
+  static IpcCltCtx &cast(void *ctx) {
+    return *reinterpret_cast<IpcCltCtx *>(ctx);
+  }
 };
 
 /* Initialize IPC gate capability. */
-SqliteIpcDB::SqliteIpcDB(const string &filename) :
-  filename{filename},
-  server{L4Re::Env::env()->get_cap<DbI>("ipc")} {
+SqliteShmDB::SqliteShmDB(const string &filename)
+    : filename{filename}, server{L4Re::Env::env()->get_cap<DbI>("shm")} {
   L4Re::chkcap(server);
 
   // Setup the main thread's data space used for sending database schema
-  // information to the server during SqliteIpcDB::CreateSchema()
+  // information to the server during SqliteShmDB::CreateSchema()
   db_infopage = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();
   L4Re::chkcap(db_infopage);
 
@@ -88,17 +106,17 @@ SqliteIpcDB::SqliteIpcDB(const string &filename) :
   // the desired rights of the memory region explicitely, or this operation
   // will fail with ENOENT
   long l = 0;
-  if ((l = L4Re::Env::env()->rm()->attach(&db_infopage_addr, YCSBC_DS_SIZE,
-                                     L4Re::Rm::F::Search_addr |
-                                     L4Re::Rm::F::RW,
-                                     L4::Ipc::make_cap_rw(db_infopage))) < 0) {
+  if ((l = L4Re::Env::env()->rm()->attach(
+           &db_infopage_addr, YCSBC_DS_SIZE,
+           L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
+           L4::Ipc::make_cap_rw(db_infopage))) < 0) {
     std::cerr << "Attach failed: " << l << std::endl;
     throw std::runtime_error{"Failed to attach db_infopage dataspace."};
   }
 }
 
 /* Send IPC for creating the schema. */
-void SqliteIpcDB::CreateSchema(DB::Tables tables) {
+void SqliteShmDB::CreateSchema(DB::Tables tables) {
   // Funnel the filename and the schema description into the infopage.
   Serializer s{db_infopage_addr, YCSBC_DS_SIZE};
   s << filename;
@@ -113,12 +131,8 @@ void SqliteIpcDB::CreateSchema(DB::Tables tables) {
 }
 
 /* Create a new session for this thread at the SQLite server. */
-void *SqliteIpcDB::Init() {
+void *SqliteShmDB::Init() {
   std::unique_ptr<IpcCltCtx> ctx{new IpcCltCtx{}};
-
-  // Allocate capabilities of context
-  ctx->bench = L4Re::Util::cap_alloc.alloc<BenchI>();
-  L4Re::chkcap(ctx->bench);
 
   ctx->ds_in = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();
   L4Re::chkcap(ctx->ds_in);
@@ -136,39 +150,37 @@ void *SqliteIpcDB::Init() {
 
   // Map new dataspaces into this AS
   if (L4Re::Env::env()->rm()->attach(&ctx->ds_in_addr, YCSBC_DS_SIZE,
-                                     L4Re::Rm::F::Search_addr |
-                                     L4Re::Rm::F::RW,
+                                     L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
                                      L4::Ipc::make_cap_rw(ctx->ds_in)) < 0) {
     throw std::runtime_error{"Failed to attach db_in dataspace."};
   }
   if (L4Re::Env::env()->rm()->attach(&ctx->ds_out_addr, YCSBC_DS_SIZE,
-                                     L4Re::Rm::F::Search_addr |
-                                     L4Re::Rm::F::RW,
+                                     L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
                                      L4::Ipc::make_cap_rw(ctx->ds_out)) < 0) {
     throw std::runtime_error{"Failed to attach db_out dataspace."};
   }
+
+  // Set the first notification bits of the dataspaces to zero.
+  // Thus, the receiving threads will wait initially.
+  *ctx->ds_in_addr = 0;
 
   // Send spawn command to server. Pay attiontion to the fact that we have to
   // explicitely make read-write capabilities in order for the sender to be
   // able to write to the memory that we send him!
   assert(server->spawn(L4::Ipc::make_cap_rw(ctx->ds_in),
-                       L4::Ipc::make_cap_rw(ctx->ds_out),
-                       ctx->bench) == L4_EOK);
+                       L4::Ipc::make_cap_rw(ctx->ds_out)) == L4_EOK);
 
-  // std::cout << "New thread initialized." << std::endl;
-  return(ctx.release());
+  std::cout << "New thread initialized." << std::endl;
+  return (ctx.release());
 }
 
-int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,
+int SqliteShmDB::Read(void *ctx_, const string &table, const string &key,
                       const vector<std::string> *fields,
                       vector<KVPair> &result) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
   // Serialize everything into the input dataspace
-  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  Serializer s = std::move(ctx.serializer());
   s << table;
   s << key;
   // We must transfer anything at all, even if it is just an empty vector
@@ -178,28 +190,24 @@ int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,
     s << std::vector<std::string>(0);
 
   // Call the server
-  assert(ctx.bench->read() == L4_EOK);
+  Deserializer d = std::move(ctx.call('r'));
 
   // Deserialize the operation results
-  Deserializer d{ctx.ds_out_addr};
   d >> result;
 
   if (result.size() == 0)
-    return(kErrorNoData);
+    return (kErrorNoData);
   else
-    return(kOK);
+    return (kOK);
 }
 
-int SqliteIpcDB::Scan(void *ctx_, const string &table, const string &key,
+int SqliteShmDB::Scan(void *ctx_, const string &table, const string &key,
                       int len, const vector<std::string> *fields,
                       vector<std::vector<KVPair>> &result) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
   // Serialize everything into the input dataspace
-  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  Serializer s = std::move(ctx.serializer());
   s << table;
   s << key;
   s << len;
@@ -210,85 +218,70 @@ int SqliteIpcDB::Scan(void *ctx_, const string &table, const string &key,
     s << std::vector<std::string>(0);
 
   // Call the server
-  assert(ctx.bench->scan() == L4_EOK);
+  Deserializer d = std::move(ctx.call('s'));
 
   // Deserialize the operation results
-  Deserializer d{ctx.ds_out_addr};
   d >> result;
 
   if (result.size() == 0)
-    return(kErrorNoData);
+    return (kErrorNoData);
   else
-    return(kOK);
+    return (kOK);
 }
 
-int SqliteIpcDB::Update(void *ctx_, const string &table, const string &key,
+int SqliteShmDB::Update(void *ctx_, const string &table, const string &key,
                         vector<KVPair> &values) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
   // Serialize everything into the input dataspace
-  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  Serializer s = std::move(ctx.serializer());
   s << table;
   s << key;
   s << values;
 
   // Call the server
-  assert(ctx.bench->update() == L4_EOK);
+  ctx.call('u');
 
-  return(kOK);
+  return (kOK);
 }
 
-int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
+int SqliteShmDB::Insert(void *ctx_, const string &table, const string &key,
                         vector<KVPair> &values) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
   // Serialize everything into the input dataspace
-  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  Serializer s = std::move(ctx.serializer());
   s << table;
   s << key;
   s << values;
 
   // Call the server
-  assert(ctx.bench->insert() == L4_EOK);
+  ctx.call('i');
 
-  return(kOK);
+  return (kOK);
 }
 
-int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
+int SqliteShmDB::Delete(void *ctx_, const string &table, const string &key) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // First, reset the input page for the server
-  memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
   // Serialize everything into the input dataspace
-  Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
+  Serializer s = std::move(ctx.serializer());
   s << table;
   s << key;
 
   // Call the server
-  assert(ctx.bench->del() == L4_EOK);
+  ctx.call('d');
 
-  return(kOK);
+  return (kOK);
 }
 
 // Signals the end of the connection to the Sqlite IPC server and destroys the
 // context associated with this worker thread. This also involves freeing all
 // dataspaces used for communication with the server.
-void SqliteIpcDB::Close(void *ctx_) {
+void SqliteShmDB::Close(void *ctx_) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
-  // Wait for the server to detach the ds_in and ds_out dataspaces we handed
-  // over earlier.
-  if (ctx.bench->close() != L4_EOK) {
-    std::cerr << "WARNING: Failed to properly shut down connection to server."
-              << std::endl;
-  }
+  ctx.call('c');
 
   // Detach communication mappings from this address space
   if (L4Re::Env::env()->rm()->detach(ctx.ds_in_addr, &ctx.ds_in) < 0) {
@@ -312,13 +305,9 @@ void SqliteIpcDB::Close(void *ctx_) {
   L4Re::Util::cap_alloc.free(ctx.ds_in);
   L4Re::Util::cap_alloc.free(ctx.ds_out);
 
-  // Terminate the server thread associated with this client thread.
-  ctx.bench->terminate();
-  L4Re::Util::cap_alloc.free(ctx.bench);
-
   delete &ctx;
 
-  // std::cerr << "Benchmark thread terminated." << std::endl;
+  std::cerr << "Benchmark thread terminated." << std::endl;
 }
 
 } // namespace ycsbc
