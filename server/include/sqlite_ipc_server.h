@@ -41,11 +41,18 @@ struct BenchI : L4::Kobject_t<BenchI, L4::Kobject, 0x42> {
   // Dataspace
   L4_INLINE_RPC(long, del, ());
  
-  // Unmaps client-provided dataspace resources and terminates this thread.
+  // Unmaps client-provided dataspace resources.
   L4_INLINE_RPC(long, close, ());
 
+  // Terminates this benchmark handler thread. This is separated from the
+  // close function in order to give the client the opportunity to wait for
+  // the server to properly scrap all memory mappings
+  // Send operation, so the client does not wait for the server to return
+  // something.
+  L4_INLINE_RPC(long, terminate, (), L4::Ipc::Send_only);
+
   typedef L4::Typeid::Rpcs<read_t, scan_t, insert_t, update_t, del_t,
-                           close_t> Rpcs;
+                           close_t, terminate_t> Rpcs;
 };
 
 // Interface for the database management and the factory for new benchmark

@@ -100,7 +100,7 @@ public:
 
     *gate = server->obj_cap();
 
-    std::cout << "Spawned new server thread." << std::endl;;
+    // std::cout << "Spawned new server thread." << std::endl;;
 
     // Signal that gate is now set.
     int rc = pthread_barrier_wait(barrier);
@@ -232,7 +232,7 @@ public:
     return(L4_EOK);
   }
 
-  // Unmaps the client-provided memory windows and terminates the server
+  // Unmaps the client-provided memory windows
   long op_close(BenchI::Rights) {
     // Detach client mappings
     if (L4Re::Env::env()->rm()->detach(ds_in_addr, &ds_in) < 0) {
@@ -248,8 +248,14 @@ public:
     L4Re::Util::cap_alloc.free(ds_in);
     L4Re::Util::cap_alloc.free(ds_out);
 
-    // TODO: Actually terminate this bench server thread
+    return(L4_EOK);
+  }
 
+  // Terminates this benchmark thread
+  long op_terminate(BenchI::Rights) {
+    pthread_exit(NULL);
+   
+    // Never reached
     return(L4_EOK);
   }
 };

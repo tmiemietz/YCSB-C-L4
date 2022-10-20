@@ -154,7 +154,7 @@ void *SqliteIpcDB::Init() {
                        L4::Ipc::make_cap_rw(ctx->ds_out),
                        ctx->bench) == L4_EOK);
 
-  std::cout << "New thread initialized." << std::endl;
+  // std::cout << "New thread initialized." << std::endl;
   return(ctx.release());
 }
 
@@ -282,6 +282,8 @@ int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
 void SqliteIpcDB::Close(void *ctx_) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
+  // Wait for the server to detach the ds_in and ds_out dataspaces we handed
+  // over earlier.
   if (ctx.bench->close() != L4_EOK) {
     std::cerr << "WARNING: Failed to properly shut down connection to server."
               << std::endl;
@@ -309,9 +311,13 @@ void SqliteIpcDB::Close(void *ctx_) {
   L4Re::Util::cap_alloc.free(ctx.ds_in);
   L4Re::Util::cap_alloc.free(ctx.ds_out);
 
+  // Terminate the server thread associated with this client thread.
+  ctx.bench->terminate();
+  L4Re::Util::cap_alloc.free(ctx.bench);
+
   delete &ctx;
 
-  std::cerr << "Benchmark thread terminated." << std::endl;
+  // std::cerr << "Benchmark thread terminated." << std::endl;
 }
 
 } // namespace ycsbc
