@@ -1,6 +1,6 @@
 # Rationale for the File Structure of this Project
 
-This package consists of potentially many independent servers. However, non
+This package consists of potentially many independent servers. However, none
 of these servers will be of particular outside the YCSBC context, so we decided
 to keep them together in one package instead of creating multiple L4 modules.
 
