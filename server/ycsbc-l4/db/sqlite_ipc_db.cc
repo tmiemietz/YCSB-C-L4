@@ -7,7 +7,7 @@
  *                                                                            *
  ******************************************************************************/
 
-#include "sqlite_ipc_db.h"          // Class definitions for sqlite_ipc_db
+#include "sqlite_ipc_db.h" // Class definitions for sqlite_ipc_db
 #include "serializer.h"
 #include "utils.h"
 
@@ -16,15 +16,15 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
-#include <memory>                   // unique_ptr etc.
-#include <l4/re/error_helper>       // L4Re::Chkcap and friends
-#include <l4/re/util/cap_alloc>
+#include <l4/re/error_helper> // L4Re::Chkcap and friends
 #include <l4/re/rm>
+#include <l4/re/util/cap_alloc>
+#include <memory> // unique_ptr etc.
 #include <stdexcept>
 #include <sys/ipc.h>
 
-using serializer::Serializer;
 using serializer::Deserializer;
+using serializer::Serializer;
 using sqlite::YCSBC_DS_SIZE;
 using sqlite::ipc::BenchI;
 using sqlite::ipc::DbI;
@@ -37,39 +37,37 @@ namespace ycsbc {
  * Context structure for clients of the sqlite IPC server.
  */
 struct IpcCltCtx {
-    // Capability to one of the benchmarks threads of the server
-    L4::Cap<BenchI> bench;
+  // Capability to one of the benchmarks threads of the server
+  L4::Cap<BenchI> bench;
 
-    // Dataspace for transmitting input parameters of benchmark functions
-    L4::Cap<L4Re::Dataspace> ds_in;
-    char *ds_in_addr = 0;
+  // Dataspace for transmitting input parameters of benchmark functions
+  L4::Cap<L4Re::Dataspace> ds_in;
+  char *ds_in_addr = 0;
 
-    // Dataspace for receiving output of benchmark functions
-    L4::Cap<L4Re::Dataspace> ds_out;
-    char *ds_out_addr = 0;
-    
-    IpcCltCtx() = default;
+  // Dataspace for receiving output of benchmark functions
+  L4::Cap<L4Re::Dataspace> ds_out;
+  char *ds_out_addr = 0;
 
-    ~IpcCltCtx() {
-        // Resource deallocation is currently done inside SqliteIpcDB::Close().
-    }
+  IpcCltCtx() = default;
 
-    IpcCltCtx(const IpcCltCtx&) = delete;
-    IpcCltCtx(IpcCltCtx&&) = delete;
+  ~IpcCltCtx() {
+    // Resource deallocation is currently done inside SqliteIpcDB::Close().
+  }
 
-    IpcCltCtx& operator=(const IpcCltCtx&) = delete;
-    IpcCltCtx& operator=(IpcCltCtx&&) = delete;
+  IpcCltCtx(const IpcCltCtx &) = delete;
+  IpcCltCtx(IpcCltCtx &&) = delete;
 
-    static IpcCltCtx &cast(void *ctx) {
-        return *reinterpret_cast<IpcCltCtx *>(ctx);
-    }
+  IpcCltCtx &operator=(const IpcCltCtx &) = delete;
+  IpcCltCtx &operator=(IpcCltCtx &&) = delete;
 
+  static IpcCltCtx &cast(void *ctx) {
+    return *reinterpret_cast<IpcCltCtx *>(ctx);
+  }
 };
 
 /* Initialize IPC gate capability. */
-SqliteIpcDB::SqliteIpcDB(const string &filename) :
-  filename{filename},
-  server{L4Re::Env::env()->get_cap<DbI>("ipc")} {
+SqliteIpcDB::SqliteIpcDB(const string &filename)
+    : filename{filename}, server{L4Re::Env::env()->get_cap<DbI>("ipc")} {
   L4Re::chkcap(server);
 
   // Setup the main thread's data space used for sending database schema
@@ -88,10 +86,10 @@ SqliteIpcDB::SqliteIpcDB(const string &filename) :
   // the desired rights of the memory region explicitely, or this operation
   // will fail with ENOENT
   long l = 0;
-  if ((l = L4Re::Env::env()->rm()->attach(&db_infopage_addr, YCSBC_DS_SIZE,
-                                     L4Re::Rm::F::Search_addr |
-                                     L4Re::Rm::F::RW,
-                                     L4::Ipc::make_cap_rw(db_infopage))) < 0) {
+  if ((l = L4Re::Env::env()->rm()->attach(
+           &db_infopage_addr, YCSBC_DS_SIZE,
+           L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
+           L4::Ipc::make_cap_rw(db_infopage))) < 0) {
     std::cerr << "Attach failed: " << l << std::endl;
     throw std::runtime_error{"Failed to attach db_infopage dataspace."};
   }
@@ -136,14 +134,12 @@ void *SqliteIpcDB::Init() {
 
   // Map new dataspaces into this AS
   if (L4Re::Env::env()->rm()->attach(&ctx->ds_in_addr, YCSBC_DS_SIZE,
-                                     L4Re::Rm::F::Search_addr |
-                                     L4Re::Rm::F::RW,
+                                     L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
                                      L4::Ipc::make_cap_rw(ctx->ds_in)) < 0) {
     throw std::runtime_error{"Failed to attach db_in dataspace."};
   }
   if (L4Re::Env::env()->rm()->attach(&ctx->ds_out_addr, YCSBC_DS_SIZE,
-                                     L4Re::Rm::F::Search_addr |
-                                     L4Re::Rm::F::RW,
+                                     L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
                                      L4::Ipc::make_cap_rw(ctx->ds_out)) < 0) {
     throw std::runtime_error{"Failed to attach db_out dataspace."};
   }
@@ -155,8 +151,7 @@ void *SqliteIpcDB::Init() {
                        L4::Ipc::make_cap_rw(ctx->ds_out),
                        ctx->bench) == L4_EOK);
 
-  // std::cout << "New thread initialized." << std::endl;
-  return(ctx.release());
+  return (ctx.release());
 }
 
 int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,
@@ -166,7 +161,7 @@ int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,
 
   // First, reset the input page for the server
   memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
+
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
   s << table;
@@ -185,9 +180,9 @@ int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,
   d >> result;
 
   if (result.size() == 0)
-    return(kErrorNoData);
+    return (kErrorNoData);
   else
-    return(kOK);
+    return (kOK);
 }
 
 int SqliteIpcDB::Scan(void *ctx_, const string &table, const string &key,
@@ -197,7 +192,7 @@ int SqliteIpcDB::Scan(void *ctx_, const string &table, const string &key,
 
   // First, reset the input page for the server
   memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
+
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
   s << table;
@@ -217,9 +212,9 @@ int SqliteIpcDB::Scan(void *ctx_, const string &table, const string &key,
   d >> result;
 
   if (result.size() == 0)
-    return(kErrorNoData);
+    return (kErrorNoData);
   else
-    return(kOK);
+    return (kOK);
 }
 
 int SqliteIpcDB::Update(void *ctx_, const string &table, const string &key,
@@ -228,7 +223,7 @@ int SqliteIpcDB::Update(void *ctx_, const string &table, const string &key,
 
   // First, reset the input page for the server
   memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
+
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
   s << table;
@@ -238,7 +233,7 @@ int SqliteIpcDB::Update(void *ctx_, const string &table, const string &key,
   // Call the server
   assert(ctx.bench->update() == L4_EOK);
 
-  return(kOK);
+  return (kOK);
 }
 
 int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
@@ -247,7 +242,7 @@ int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
 
   // First, reset the input page for the server
   memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
+
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
   s << table;
@@ -257,7 +252,7 @@ int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
   // Call the server
   assert(ctx.bench->insert() == L4_EOK);
 
-  return(kOK);
+  return (kOK);
 }
 
 int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
@@ -265,7 +260,7 @@ int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
 
   // First, reset the input page for the server
   memset(ctx.ds_in_addr, '\0', YCSBC_DS_SIZE);
-  
+
   // Serialize everything into the input dataspace
   Serializer s{ctx.ds_in_addr, YCSBC_DS_SIZE};
   s << table;
@@ -274,7 +269,7 @@ int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
   // Call the server
   assert(ctx.bench->del() == L4_EOK);
 
-  return(kOK);
+  return (kOK);
 }
 
 // Signals the end of the connection to the Sqlite IPC server and destroys the
