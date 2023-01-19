@@ -131,7 +131,7 @@ void SqliteShmDB::CreateSchema(DB::Tables tables) {
 }
 
 /* Create a new session for this thread at the SQLite server. */
-void *SqliteShmDB::Init() {
+void *SqliteShmDB::Init(l4_umword_t cpu) {
   std::unique_ptr<IpcCltCtx> ctx{new IpcCltCtx{}};
 
   ctx->ds_in = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();
@@ -168,9 +168,8 @@ void *SqliteShmDB::Init() {
   // explicitely make read-write capabilities in order for the sender to be
   // able to write to the memory that we send him!
   assert(server->spawn(L4::Ipc::make_cap_rw(ctx->ds_in),
-                       L4::Ipc::make_cap_rw(ctx->ds_out)) == L4_EOK);
+                       L4::Ipc::make_cap_rw(ctx->ds_out), cpu) == L4_EOK);
 
-  std::cout << "New thread initialized." << std::endl;
   return (ctx.release());
 }
 
@@ -307,7 +306,7 @@ void SqliteShmDB::Close(void *ctx_) {
 
   delete &ctx;
 
-  std::cerr << "Benchmark thread terminated." << std::endl;
+  // std::cerr << "Benchmark thread terminated." << std::endl;
 }
 
 } // namespace ycsbc

@@ -15,6 +15,7 @@
 #include <l4/sys/err.h>
 #include <l4/sys/factory>
 #include <l4/sys/ipc_gate>
+#include <l4/sys/scheduler>
 #include <pthread-l4.h>
 
 #include "db.h"
@@ -42,6 +43,7 @@ struct BenchArgs {
   // Location to return the create gate to.
   L4::Cap<BenchI> *gate;
   ycsbc::SqliteLibDB *db;
+  l4_umword_t cpu;
 };
 
 // Implements a single benchmark thread, which performs the Read(), Scan(), etc.
@@ -109,6 +111,9 @@ public:
     auto out = args->out;
     auto gate = args->gate;
     auto db = args->db;
+    auto cpu = args->cpu;
+
+    ycsbc::migrate(cpu);
 
     // FIXME: server is never freed.
     auto server = new BenchServer{in, out, db};
@@ -319,7 +324,8 @@ public:
   }
 
   long op_spawn(DbI::Rights, L4::Ipc::Snd_fpage in_buf,
-                L4::Ipc::Snd_fpage out_buf, L4::Ipc::Cap<BenchI> &res) {
+                L4::Ipc::Snd_fpage out_buf, L4::Ipc::Cap<BenchI> &res,
+                l4_umword_t cpu) {
     L4::Cap<BenchI> gate;
 
     // Check if we actually received capabilities
@@ -339,6 +345,7 @@ public:
         .out = out,
         .gate = &gate,
         .db = db,
+        .cpu = cpu,
     };
     assert(!pthread_create(&thread, nullptr, BenchServer::loop, &args));
 

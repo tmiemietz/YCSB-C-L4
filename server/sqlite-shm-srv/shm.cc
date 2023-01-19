@@ -88,8 +88,8 @@ public:
   // Wait for incoming messages by busy-waiting on the first bit of the input
   // dataspace to be non-zero.
   // Signal a response in the same way on the output dataspace.
-  void loop() {
-    std::cout << "Spawned new server thread." << std::endl;
+  void loop(l4_umword_t cpu) {
+    ycsbc::migrate(cpu);
 
     for (;;) {
       char op;
@@ -314,7 +314,7 @@ public:
   }
 
   long op_spawn(DbI::Rights, L4::Ipc::Snd_fpage in_buf,
-                L4::Ipc::Snd_fpage out_buf) {
+                L4::Ipc::Snd_fpage out_buf, l4_umword_t cpu) {
     // Check if we actually received capabilities
     if (!in_buf.cap_received() || !out_buf.cap_received()) {
       std::cerr << "Received fpages were not capabilities." << std::endl;
@@ -330,7 +330,7 @@ public:
 
     // Thread object must not be constructed on the stack.
     // FIXME: Cleanup thread object.
-    new std::thread{&BenchServer::loop, server};
+    new std::thread{&BenchServer::loop, server, cpu};
 
     return L4_EOK;
   }

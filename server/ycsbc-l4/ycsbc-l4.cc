@@ -13,10 +13,6 @@
 #include <sstream>
 #include <vector>
 #include <future>
-#include <pthread-l4.h>
-
-#include <l4/sys/scheduler>
-#include <l4/re/env>
 
 #include "core/utils.h"
 #include "core/timer.h"
@@ -32,17 +28,12 @@ bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
 static int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, 
-    const int num_ops, bool is_loading, l4_umword_t cpu) {
+    const int num_ops, bool is_loading, l4_umword_t cpu, l4_umword_t db_cpu) {
   // Migrate this thread to the specified CPU.
   // std::async uses pthreads internally.
-  // Cannot use pthread_setaffinity_np here. It ignores CPUs with id >= 64.
-  // 2 is the default pthread priority in L4.
-  auto sp = l4_sched_param(2);
-  sp.affinity = l4_sched_cpu_set(cpu, 0);
-  assert(!l4_error(L4Re::Env::env()->scheduler()->run_thread(Pthread::L4::cap(pthread_self()), sp)));
-  ycsbc::print_apic();
+  ycsbc::migrate(cpu);
 
-  void *ctx = db->Init();
+  void *ctx = db->Init(db_cpu);
   ycsbc::Client client(*db, *wl, ctx);
   int oks = 0;
   for (int i = 0; i < num_ops; ++i) {
@@ -89,12 +80,26 @@ int main(const int argc, const char *argv[]) {
     // Only use the first CPU in the list.
     cpus.resize(1);
 
+  bool disperse;
+  istringstream(props.GetProperty("disperse", "0")) >> disperse;
+  auto select_cpus = +[](std::vector<l4_umword_t> const &cpus, int i) {
+    l4_umword_t cpu = cpus[i % cpus.size()];
+    return make_pair(cpu, cpu);
+  };
+  if (disperse)
+    select_cpus = +[](std::vector<l4_umword_t> const &cpus, int i) {
+      return make_pair(cpus[(2 * i) % cpus.size()],
+                       cpus[(2 * i + 1) % cpus.size()]);
+    };
+
   // Loads data
   vector<future<int>> actual_ops;
   int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
   for (int i = 0; i < num_threads; ++i) {
+    auto selected_cpus = select_cpus(cpus, i);
     actual_ops.emplace_back(async(launch::async,
-        DelegateClient, db, &wl, total_ops / num_threads, true, cpus[i % cpus.size()]));
+        DelegateClient, db, &wl, total_ops / num_threads, true,
+        selected_cpus.first, selected_cpus.second));
   }
 
   assert((int)actual_ops.size() == num_threads);
@@ -112,8 +117,10 @@ int main(const int argc, const char *argv[]) {
   utils::Timer<double> timer;
   timer.Start();
   for (int i = 0; i < num_threads; ++i) {
+    auto selected_cpus = select_cpus(cpus, i);
     actual_ops.emplace_back(async(launch::async,
-        DelegateClient, db, &wl, total_ops / num_threads, false, cpus[i % cpus.size()]));
+        DelegateClient, db, &wl, total_ops / num_threads, false,
+        selected_cpus.first, selected_cpus.second));
   }
   assert((int)actual_ops.size() == num_threads);
 
@@ -194,6 +201,9 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) 
     } else if (strcmp(argv[argindex], "-avoid-boot-cpu") == 0) {
       argindex++;
       props.SetProperty("avoid-boot-cpu", "1");
+    } else if (strcmp(argv[argindex], "-disperse") == 0) {
+      argindex++;
+      props.SetProperty("disperse", "1");
     } else {
       cout << "Unknown option '" << argv[argindex] << "'" << endl;
       exit(0);
@@ -202,6 +212,16 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) 
 
   if (argindex == 1 || argindex != argc) {
     UsageMessage(argv[0]);
+    exit(0);
+  }
+
+  auto const& properties = props.properties();
+  bool should_disperse = properties.find("disperse") != properties.end();
+  bool should_migrate = properties.find("migrate-rr") != properties.end();
+  string dbname = props.GetProperty("dbname", "none");
+  if (should_disperse &&
+      (!should_migrate || (dbname != "sqlite_ipc" && dbname != "sqlite_shm"))) {
+    cout << "Argument -disperse not allowed" << endl;
     exit(0);
   }
 
@@ -217,6 +237,8 @@ void UsageMessage(const char *command) {
   cout << "                   be specified, and will be processed in the order specified" << endl;
   cout << "  -migrate-rr: assign threads round-robin to CPUs" << endl;
   cout << "  -avoid-boot-cpu: do not migrate threads to the boot CPU" << endl;
+  cout << "  -disperse: assign communicating ycsb and db threads to different CPUs" << endl;
+  cout << "              (for sqlite_ipc and sqlite_shm)" << endl;
 }
 
 inline bool StrStartWith(const char *str, const char *pre) {

@@ -40,12 +40,21 @@ public:
   /// @param tables A list of tables to create.
   virtual void CreateSchema(Tables tables) { (void)tables; }
   ///
+  /// See void *Init(l4_umword_t).
+  ///
+  virtual void *Init() { return nullptr; }
+  ///
   /// Initializes any state for accessing this DB.
   /// Called once per DB client (thread); there is a single DB instance
   /// globally.
+  /// @param cpu The CPU on which the DB thread should run on if a separate
+  ///            thread is spawned.
   /// @return A pointer to a per-thread context object (or NULL).
   ///
-  virtual void *Init() { return nullptr; }
+  virtual void *Init(l4_umword_t cpu) {
+    (void)cpu;
+    return Init();
+  }
   ///
   /// Clears any state for accessing this DB.
   /// Called once per DB client (thread); there is a single DB instance

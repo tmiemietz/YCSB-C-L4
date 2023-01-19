@@ -7,6 +7,8 @@
 
 #include <iostream>
 #include <vector>
+#include <pthread-l4.h>
+#include <cassert>
 
 #include <l4/re/env>
 #include <l4/re/util/br_manager>
@@ -62,6 +64,17 @@ static inline std::vector<l4_umword_t> online_cpus() {
     offset += CPUS_PER_MAP;
   }
   return cpus;
+}
+
+// Migrate this pthread thread to the specified CPU.
+static inline void migrate(l4_umword_t cpu) {
+  // Cannot use pthread_setaffinity_np here. It ignores CPUs with id >= 64.
+  // 2 is the default pthread priority in L4.
+  auto sp = l4_sched_param(2);
+  sp.affinity = l4_sched_cpu_set(cpu, 0);
+  assert(!l4_error(L4Re::Env::env()->scheduler()->run_thread(
+      Pthread::L4::cap(pthread_self()), sp)));
+  ycsbc::print_apic();
 }
 
 } // namespace ycsbc

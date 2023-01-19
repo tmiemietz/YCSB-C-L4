@@ -30,7 +30,7 @@ public:
 
     // Meta operations for database and/or connection management
     void CreateSchema(DB::Tables tables) override;
-    void *Init() override;
+    void *Init(l4_umword_t cpu) override;
     void Close(void *ctx) override;
 
     // Database (benchmark) operations

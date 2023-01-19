@@ -60,11 +60,12 @@ struct DbI : L4::Kobject_t<DbI, L4::Kobject, 0x43, L4::Type_info::Demand_t<2>> {
   // client-provided capability.
   L4_INLINE_RPC(long, schema, (L4::Ipc::Cap<L4Re::Dataspace>));
   
-  // Spawn a new thread with its own database connection.
+  // Spawn a new thread on cpu with its own database connection.
   // Returns an IPC gate for communication with this thread.
   L4_INLINE_RPC(long, spawn, (L4::Ipc::Cap<L4Re::Dataspace>, 
                               L4::Ipc::Cap<L4Re::Dataspace>,
-                              L4::Ipc::Out<L4::Cap<BenchI>>));
+                              L4::Ipc::Out<L4::Cap<BenchI>>,
+                              l4_umword_t cpu));
 
   typedef L4::Typeid::Rpcs<schema_t, spawn_t> Rpcs;
 };

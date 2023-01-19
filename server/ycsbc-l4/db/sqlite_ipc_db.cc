@@ -111,7 +111,7 @@ void SqliteIpcDB::CreateSchema(DB::Tables tables) {
 }
 
 /* Create a new session for this thread at the SQLite server. */
-void *SqliteIpcDB::Init() {
+void *SqliteIpcDB::Init(l4_umword_t cpu) {
   std::unique_ptr<IpcCltCtx> ctx{new IpcCltCtx{}};
 
   // Allocate capabilities of context
@@ -148,8 +148,8 @@ void *SqliteIpcDB::Init() {
   // explicitely make read-write capabilities in order for the sender to be
   // able to write to the memory that we send him!
   assert(server->spawn(L4::Ipc::make_cap_rw(ctx->ds_in),
-                       L4::Ipc::make_cap_rw(ctx->ds_out),
-                       ctx->bench) == L4_EOK);
+                       L4::Ipc::make_cap_rw(ctx->ds_out), ctx->bench,
+                       cpu) == L4_EOK);
 
   return (ctx.release());
 }
