@@ -12,11 +12,15 @@
 #include <iostream>
 #include <vector>
 #include <future>
+#include <pthread-l4.h>
+#include <l4/sys/scheduler>
+#include <l4/re/env>
 #include "core/utils.h"
 #include "core/timer.h"
 #include "core/client.h"
 #include "core/core_workload.h"
 #include "db/db_factory.h"
+#include "utils.h"
 
 using namespace std;
 
@@ -25,7 +29,16 @@ bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
 static int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, 
-    const int num_ops, bool is_loading) {
+    const int num_ops, bool is_loading, l4_umword_t cpu) {
+  // Migrate this thread to the specified CPU.
+  // std::async uses pthreads internally.
+  // Cannot use pthread_setaffinity_np here. It ignores CPUs with id >= 64.
+  // 2 is the default pthread priority in L4.
+  auto sp = l4_sched_param(2);
+  sp.affinity = l4_sched_cpu_set(cpu, 0);
+  assert(!l4_error(L4Re::Env::env()->scheduler()->run_thread(Pthread::L4::cap(pthread_self()), sp)));
+  ycsbc::print_apic();
+
   void *ctx = db->Init();
   ycsbc::Client client(*db, *wl, ctx);
   int oks = 0;
@@ -57,13 +70,17 @@ int main(const int argc, const char *argv[]) {
 
   const int num_threads = stoi(props.GetProperty("threadcount", "1"));
 
+  std::vector<l4_umword_t> cpus = ycsbc::online_cpus();
+
   // Loads data
   vector<future<int>> actual_ops;
   int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
-  for (int i = 0; i < num_threads; ++i) {
+  for (int i = 1; i <= num_threads; ++i) {
+    // Thread migration starting from the second CPU.
     actual_ops.emplace_back(async(launch::async,
-        DelegateClient, db, &wl, total_ops / num_threads, true));
+        DelegateClient, db, &wl, total_ops / num_threads, true, cpus[i % cpus.size()]));
   }
+
   assert((int)actual_ops.size() == num_threads);
 
   int sum = 0;
@@ -78,9 +95,9 @@ int main(const int argc, const char *argv[]) {
   total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
   utils::Timer<double> timer;
   timer.Start();
-  for (int i = 0; i < num_threads; ++i) {
+  for (int i = 1; i <= num_threads; ++i) {
     actual_ops.emplace_back(async(launch::async,
-        DelegateClient, db, &wl, total_ops / num_threads, false));
+        DelegateClient, db, &wl, total_ops / num_threads, false, cpus[i % cpus.size()]));
   }
   assert((int)actual_ops.size() == num_threads);
 
