@@ -10,11 +10,14 @@
 #include <cstring>
 #include <string>
 #include <iostream>
+#include <sstream>
 #include <vector>
 #include <future>
 #include <pthread-l4.h>
+
 #include <l4/sys/scheduler>
 #include <l4/re/env>
+
 #include "core/utils.h"
 #include "core/timer.h"
 #include "core/client.h"
@@ -70,13 +73,26 @@ int main(const int argc, const char *argv[]) {
 
   const int num_threads = stoi(props.GetProperty("threadcount", "1"));
 
+  // Query online CPUs.
   std::vector<l4_umword_t> cpus = ycsbc::online_cpus();
+  assert(!cpus.empty());
+
+  bool avoid_boot_cpu;
+  istringstream(props.GetProperty("avoid-boot-cpu", "0")) >> avoid_boot_cpu;
+  if (avoid_boot_cpu && cpus.size() > 1)
+    // Remove first/boot CPU.
+    cpus.erase(cpus.begin());
+
+  bool migrate_rr;
+  istringstream(props.GetProperty("migrate-rr", "0")) >> migrate_rr;
+  if (!migrate_rr)
+    // Only use the first CPU in the list.
+    cpus.resize(1);
 
   // Loads data
   vector<future<int>> actual_ops;
   int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
-  for (int i = 1; i <= num_threads; ++i) {
-    // Thread migration starting from the second CPU.
+  for (int i = 0; i < num_threads; ++i) {
     actual_ops.emplace_back(async(launch::async,
         DelegateClient, db, &wl, total_ops / num_threads, true, cpus[i % cpus.size()]));
   }
@@ -95,7 +111,7 @@ int main(const int argc, const char *argv[]) {
   total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
   utils::Timer<double> timer;
   timer.Start();
-  for (int i = 1; i <= num_threads; ++i) {
+  for (int i = 0; i < num_threads; ++i) {
     actual_ops.emplace_back(async(launch::async,
         DelegateClient, db, &wl, total_ops / num_threads, false, cpus[i % cpus.size()]));
   }
@@ -172,6 +188,12 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) 
       }
       input.close();
       argindex++;
+    } else if (strcmp(argv[argindex], "-migrate-rr") == 0) {
+      argindex++;
+      props.SetProperty("migrate-rr", "1");
+    } else if (strcmp(argv[argindex], "-avoid-boot-cpu") == 0) {
+      argindex++;
+      props.SetProperty("avoid-boot-cpu", "1");
     } else {
       cout << "Unknown option '" << argv[argindex] << "'" << endl;
       exit(0);
@@ -193,6 +215,8 @@ void UsageMessage(const char *command) {
   cout << "  -db dbname: specify the name of the DB to use (default: basic)" << endl;
   cout << "  -P propertyfile: load properties from the given file. Multiple files can" << endl;
   cout << "                   be specified, and will be processed in the order specified" << endl;
+  cout << "  -migrate-rr: assign threads round-robin to CPUs" << endl;
+  cout << "  -avoid-boot-cpu: do not migrate threads to the boot CPU" << endl;
 }
 
 inline bool StrStartWith(const char *str, const char *pre) {

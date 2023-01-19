@@ -46,7 +46,8 @@ static inline std::vector<l4_umword_t> online_cpus() {
   l4_umword_t cpu_max{};
   l4_sched_cpu_set_t set{};
   L4Re::Env::env()->scheduler()->info(&cpu_max, &set);
-  std::cout << "cpu_max " << cpu_max << std::endl;
+  // std::cout << "Maximum number of CPUs: " << cpu_max << std::endl;
+
   std::vector<l4_umword_t> cpus{};
   cpus.reserve(cpu_max);
   while (offset < cpu_max) {
