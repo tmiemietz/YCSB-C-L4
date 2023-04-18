@@ -125,7 +125,8 @@ void SqliteShmDB::CreateSchema(DB::Tables tables) {
   // Call the server
   L4::Ipc::Cap<L4Re::Dataspace> snd_cap(db_infopage);
   auto rc = server->schema(snd_cap);
-  assert(rc == L4_EOK);
+  if (rc != L4_EOK)
+    throw std::runtime_error{"creating schema failed"};
 
   std::cout << "Schema created." << std::endl;
 }
@@ -167,8 +168,9 @@ void *SqliteShmDB::Init(l4_umword_t cpu) {
   // Send spawn command to server. Pay attiontion to the fact that we have to
   // explicitely make read-write capabilities in order for the sender to be
   // able to write to the memory that we send him!
-  assert(server->spawn(L4::Ipc::make_cap_rw(ctx->ds_in),
-                       L4::Ipc::make_cap_rw(ctx->ds_out), cpu) == L4_EOK);
+  if (server->spawn(L4::Ipc::make_cap_rw(ctx->ds_in),
+                    L4::Ipc::make_cap_rw(ctx->ds_out), cpu) != L4_EOK)
+    throw std::runtime_error{"spawn command failed"};
 
   return (ctx.release());
 }

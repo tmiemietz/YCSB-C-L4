@@ -66,7 +66,8 @@ int main(const int argc, const char *argv[]) {
 
   // Query online CPUs.
   std::vector<l4_umword_t> cpus = ycsbc::online_cpus();
-  assert(!cpus.empty());
+  if (cpus.empty())
+    throw std::runtime_error{"cpu list empty"};
 
   bool avoid_boot_cpu;
   istringstream(props.GetProperty("avoid-boot-cpu", "0")) >> avoid_boot_cpu;

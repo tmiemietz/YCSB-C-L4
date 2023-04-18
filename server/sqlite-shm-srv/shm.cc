@@ -3,7 +3,6 @@
  * Author: Viktor Reusch
  */
 
-#include <cassert>
 #include <iostream>
 #include <l4/re/dataspace>
 #include <l4/re/env>
@@ -133,13 +132,16 @@ public:
       case 'c':
         // Send response before unmapping the necessary dataspace.
         __atomic_store_n(ds_out_addr, 1, __ATOMIC_RELEASE);
-        assert(close() == L4_EOK);
+        if (close() != L4_EOK)
+          throw std::runtime_error{"failed to close BenchServer"};
         return;
       default:
         throw std::runtime_error{"invalid opcode"};
       }
 
-      assert(rc == L4_EOK);
+      if (rc != L4_EOK) {
+        throw std::runtime_error{"operation failed"};
+      }
 
       // Reset notification byte.
       *ds_in_addr = 0;

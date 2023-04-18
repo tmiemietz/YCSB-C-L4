@@ -105,7 +105,8 @@ void SqliteIpcDB::CreateSchema(DB::Tables tables) {
   // Call the server
   L4::Ipc::Cap<L4Re::Dataspace> snd_cap(db_infopage);
   auto rc = server->schema(snd_cap);
-  assert(rc == L4_EOK);
+  if (rc != L4_EOK)
+    throw std::runtime_error{"creating schema failed"};
 
   std::cout << "Schema created." << std::endl;
 }
@@ -147,9 +148,10 @@ void *SqliteIpcDB::Init(l4_umword_t cpu) {
   // Send spawn command to server. Pay attiontion to the fact that we have to
   // explicitely make read-write capabilities in order for the sender to be
   // able to write to the memory that we send him!
-  assert(server->spawn(L4::Ipc::make_cap_rw(ctx->ds_in),
-                       L4::Ipc::make_cap_rw(ctx->ds_out), ctx->bench,
-                       cpu) == L4_EOK);
+  if (server->spawn(L4::Ipc::make_cap_rw(ctx->ds_in),
+                    L4::Ipc::make_cap_rw(ctx->ds_out), ctx->bench,
+                    cpu) != L4_EOK)
+    throw std::runtime_error{"spawn command failed"};
 
   return (ctx.release());
 }
@@ -173,7 +175,8 @@ int SqliteIpcDB::Read(void *ctx_, const string &table, const string &key,
     s << std::vector<std::string>(0);
 
   // Call the server
-  assert(ctx.bench->read() == L4_EOK);
+  if (ctx.bench->read() != L4_EOK)
+    throw std::runtime_error{"read command failed"};
 
   // Deserialize the operation results
   Deserializer d{ctx.ds_out_addr};
@@ -205,7 +208,8 @@ int SqliteIpcDB::Scan(void *ctx_, const string &table, const string &key,
     s << std::vector<std::string>(0);
 
   // Call the server
-  assert(ctx.bench->scan() == L4_EOK);
+  if (ctx.bench->scan() != L4_EOK)
+    throw std::runtime_error{"scan command failed"};
 
   // Deserialize the operation results
   Deserializer d{ctx.ds_out_addr};
@@ -231,7 +235,8 @@ int SqliteIpcDB::Update(void *ctx_, const string &table, const string &key,
   s << values;
 
   // Call the server
-  assert(ctx.bench->update() == L4_EOK);
+  if (ctx.bench->update() != L4_EOK)
+    throw std::runtime_error{"update command failed"};
 
   return (kOK);
 }
@@ -250,7 +255,8 @@ int SqliteIpcDB::Insert(void *ctx_, const string &table, const string &key,
   s << values;
 
   // Call the server
-  assert(ctx.bench->insert() == L4_EOK);
+  if (ctx.bench->insert() != L4_EOK)
+    throw std::runtime_error{"insert command failed"};
 
   return (kOK);
 }
@@ -267,7 +273,8 @@ int SqliteIpcDB::Delete(void *ctx_, const string &table, const string &key) {
   s << key;
 
   // Call the server
-  assert(ctx.bench->del() == L4_EOK);
+  if (ctx.bench->del() != L4_EOK)
+   throw std::runtime_error{"delete command failed"};
 
   return (kOK);
 }

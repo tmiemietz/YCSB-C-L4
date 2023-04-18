@@ -6,9 +6,8 @@
 #pragma once
 
 #include <iostream>
-#include <vector>
 #include <pthread-l4.h>
-#include <cassert>
+#include <vector>
 
 #include <l4/re/env>
 #include <l4/re/util/br_manager>
@@ -72,8 +71,9 @@ static inline void migrate(l4_umword_t cpu) {
   // 2 is the default pthread priority in L4.
   auto sp = l4_sched_param(2);
   sp.affinity = l4_sched_cpu_set(cpu, 0);
-  assert(!l4_error(L4Re::Env::env()->scheduler()->run_thread(
-      Pthread::L4::cap(pthread_self()), sp)));
+  if (l4_error(L4Re::Env::env()->scheduler()->run_thread(
+          Pthread::L4::cap(pthread_self()), sp)))
+    throw std::runtime_error{"failed to migrate thread"};
   ycsbc::print_apic();
 }
 

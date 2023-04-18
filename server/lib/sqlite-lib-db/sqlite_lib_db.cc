@@ -13,7 +13,6 @@
 #include <iostream>
 #include <exception>
 #include <utility>                  // For std::get and friends...
-#include <cassert>                  // For assert
 #include <memory>                   // For unique_ptr
 #include <algorithm>                // For std::sort
 #include <unordered_map>            // For std::unordered_map
@@ -23,9 +22,10 @@ using std::vector;
 
 namespace ycsbc {
 
-// Assert that r == SQLITE_OK.
-static void assert_sqlite(int r) {
-    assert(r == SQLITE_OK);
+// Throw error on r != SQLITE_OK.
+static void check_sqlite(int r) {
+    if (r != SQLITE_OK)
+        throw std::runtime_error{"sqlite command failed"};
 }
 
 struct Ctx {
@@ -37,12 +37,12 @@ struct Ctx {
     Ctx() = default;
     ~Ctx() {
         for (auto stmt : stmts) {
-            assert_sqlite(sqlite3_clear_bindings(stmt.second));
-            assert_sqlite(sqlite3_reset(stmt.second));
-            assert_sqlite(sqlite3_finalize(stmt.second));
+            check_sqlite(sqlite3_clear_bindings(stmt.second));
+            check_sqlite(sqlite3_reset(stmt.second));
+            check_sqlite(sqlite3_finalize(stmt.second));
         }
         if (database)
-            assert_sqlite(sqlite3_close(database));
+            check_sqlite(sqlite3_close(database));
     }
     Ctx(const Ctx&) = delete;
     Ctx(Ctx&&) = delete;
@@ -254,8 +254,8 @@ int SqliteLibDB::Read(void *ctx_, const string &table, const string &key,
         break;
     }
 
-    assert_sqlite(sqlite3_clear_bindings(pStmt));
-    assert_sqlite(sqlite3_reset(pStmt));
+    check_sqlite(sqlite3_clear_bindings(pStmt));
+    check_sqlite(sqlite3_reset(pStmt));
 
     // TODO: Are we supposed to free the fields vector here?
 
@@ -339,8 +339,8 @@ int SqliteLibDB::Scan(void *ctx_, const string &table, const string &key,
         }
     }
 
-    assert_sqlite(sqlite3_clear_bindings(pStmt));
-    assert_sqlite(sqlite3_reset(pStmt));
+    check_sqlite(sqlite3_clear_bindings(pStmt));
+    check_sqlite(sqlite3_reset(pStmt));
 
     // TODO: Are we supposed to free the fields vector here?
 
@@ -403,8 +403,8 @@ int SqliteLibDB::Update(void *ctx_, const string &table, const string &key,
         throw std::runtime_error("Failed to step update statement");
     }
 
-    assert_sqlite(sqlite3_clear_bindings(pStmt));
-    assert_sqlite(sqlite3_reset(pStmt));
+    check_sqlite(sqlite3_clear_bindings(pStmt));
+    check_sqlite(sqlite3_reset(pStmt));
 
     return(kOK);
 }
@@ -465,8 +465,8 @@ int SqliteLibDB::Insert(void *ctx_, const string &table, const string &key,
         throw std::runtime_error("Failed to step insert statement");
     }
 
-    assert_sqlite(sqlite3_clear_bindings(pStmt));
-    assert_sqlite(sqlite3_reset(pStmt));
+    check_sqlite(sqlite3_clear_bindings(pStmt));
+    check_sqlite(sqlite3_reset(pStmt));
 
     return kOK;
 }
@@ -506,14 +506,14 @@ int SqliteLibDB::Delete(void *ctx_, const string &table, const string &key) {
         throw std::runtime_error("Failed to step delete statement");
     }
 
-    assert_sqlite(sqlite3_clear_bindings(pStmt));
-    assert_sqlite(sqlite3_reset(pStmt));
+    check_sqlite(sqlite3_clear_bindings(pStmt));
+    check_sqlite(sqlite3_reset(pStmt));
 
     return(kOK);
 }
 
 SqliteLibDB::~SqliteLibDB() {
-    assert_sqlite(sqlite3_close(schema_database));
+    check_sqlite(sqlite3_close(schema_database));
 }
 
 } // ycsbc

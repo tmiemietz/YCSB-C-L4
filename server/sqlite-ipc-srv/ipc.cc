@@ -3,7 +3,6 @@
  * Author: Viktor Reusch
  */
 
-#include <cassert>
 #include <iostream>
 #include <l4/re/dataspace>
 #include <l4/re/env>
@@ -125,7 +124,8 @@ public:
     // Signal that gate is now set.
     auto tag = l4_ipc_send(caller.cap(), l4_utcb(), l4_msgtag(0, 0, 0, 0),
                            L4_IPC_NEVER);
-    assert(!l4_msgtag_has_error(tag));
+    if (l4_msgtag_has_error(tag))
+      throw std::runtime_error{"failed to send signal to caller"};
 
     // Start waiting for communication.
     server->registry.loop();
@@ -347,11 +347,13 @@ public:
         .db = db,
         .cpu = cpu,
     };
-    assert(!pthread_create(&thread, nullptr, BenchServer::loop, &args));
+    if (pthread_create(&thread, nullptr, BenchServer::loop, &args))
+      throw std::runtime_error{"pthread_create failed"};
 
     // Wait for other thread to set gate.
     auto tag = l4_ipc_receive(pthread_l4_cap(thread), l4_utcb(), L4_IPC_NEVER);
-    assert(!l4_msgtag_has_error(tag));
+    if (l4_msgtag_has_error(tag))
+      throw std::runtime_error{"receiving from created thread failed"};
 
     // Return the IPC gate to the benchmark server.
     res = L4::Ipc::make_cap_rw(gate);
