@@ -99,6 +99,10 @@ etc.) is equal to that of the library version of `sqlite`.
 
 ##### SqliteShm DB
 
+**This benchmark only works properly when the client and the server threads**
+**are on different CPUs.**
+**Hence `-disperse` is obligatory for this benchmark.**
+
 Sqlite database instance that runs in a different process. The communication
 between the benchmark process and the `sqlite_shm` server is mainly done via
 shared memory (dataspaces).

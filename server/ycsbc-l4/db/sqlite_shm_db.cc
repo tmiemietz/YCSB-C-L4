@@ -70,8 +70,6 @@ struct IpcCltCtx {
     while (!(__atomic_load_n(ds_out_addr, __ATOMIC_ACQUIRE))) {
       // Use PAUSE to hint a spin-wait loop. This should use YIELD on ARM.
       __builtin_ia32_pause();
-      // The program hangs without this line.
-      l4_sleep(1);
     }
 
     // Reset notification byte.
