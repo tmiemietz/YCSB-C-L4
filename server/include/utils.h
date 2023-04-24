@@ -6,8 +6,9 @@
 #pragma once
 
 #include <iostream>
-#include <pthread-l4.h>
 #include <vector>
+
+#ifndef NO_L4
 
 #include <l4/re/env>
 #include <l4/re/util/br_manager>
@@ -16,6 +17,7 @@
 #include <l4/sys/cxx/ipc_epiface>
 #include <l4/sys/scheduler>
 #include <l4/util/cpu.h>
+#include <pthread-l4.h>
 
 namespace sqlite {
 
@@ -27,7 +29,24 @@ typedef L4Re::Util::Registry_server<L4Re::Util::Br_manager_hooks> Registry;
 
 } // namespace sqlite
 
+#endif // NO_L4
+
 namespace ycsbc {
+
+#ifdef NO_L4
+
+// Return a vector with an ascending list of the identifiers of all online CPUS.
+static inline std::vector<l4_umword_t> online_cpus() {
+  // FIXME: Implement listing CPUs.
+  return std::vector{static_cast<l4_umword_t>(0)};
+}
+
+// Migrate this pthread thread to the specified CPU.
+static inline void migrate(l4_umword_t cpu) {
+  // FIXME: Implement migration.
+}
+
+#else // !NO_L4
 
 // Print APIC id for debugging purposes.
 // On QEMU, this is the same as the CPU index.
@@ -76,5 +95,7 @@ static inline void migrate(l4_umword_t cpu) {
     throw std::runtime_error{"failed to migrate thread"};
   ycsbc::print_apic();
 }
+
+#endif // !NO_L4
 
 } // namespace ycsbc

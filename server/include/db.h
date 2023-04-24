@@ -13,6 +13,10 @@
 #include <string>
 #include <vector>
 
+#ifdef NO_L4
+typedef std::size_t l4_umword_t;
+#endif
+
 namespace ycsbc {
 
 struct Table {
