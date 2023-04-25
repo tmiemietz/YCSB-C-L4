@@ -13,6 +13,8 @@
 #include <sstream>
 #include <vector>
 #include <future>
+#include <chrono>
+#include <thread>
 
 #include "core/utils.h"
 #include "core/timer.h"
@@ -131,9 +133,14 @@ int main(const int argc, const char *argv[]) {
     sum += n.get();
   }
   double duration = timer.End();
-  cerr << "# Transaction throughput (KTPS)" << endl;
-  cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
-  cerr << total_ops / duration / 1000 << endl;
+
+  // Print result repeatedly so we do not miss it over an unreliable console.
+  while(true) {
+    cerr << "# Transaction throughput (KTPS)" << endl;
+    cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
+    cerr << total_ops / duration / 1000 << endl;
+    std::this_thread::sleep_for(std::chrono::seconds(10));
+  }
 }
 
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) {
