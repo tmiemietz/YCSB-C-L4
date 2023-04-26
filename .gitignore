@@ -27,7 +27,6 @@
 *.out
 *.app
 /Debug/
-/build/
 
 .project
 .cproject
@@ -40,5 +39,3 @@
 
 redis/sample
 ycsbc
-/compile_commands.json
-/.cache/

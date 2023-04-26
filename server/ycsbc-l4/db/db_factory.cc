@@ -12,10 +12,8 @@
 #include "db/basic_db.h"
 #include "db/lock_stl_db.h"
 #include "sqlite_lib_db.h"
-#ifndef NO_L4
 #include "sqlite_ipc_db.h"
 #include "sqlite_shm_db.h"
-#endif
 
 using namespace std;
 using ycsbc::DB;
@@ -31,14 +29,12 @@ DB* DBFactory::CreateDB(utils::Properties &props) {
   else if (props["dbname"] == "sqlite_lib") {
     return new SqliteLibDB;
   }
-#ifndef NO_L4
   else if (props["dbname"] == "sqlite_ipc") {
     return new SqliteIpcDB;
   }
   else if (props["dbname"] == "sqlite_shm") {
     return new SqliteShmDB;
   }
-#endif
   else 
     return NULL;
 }
