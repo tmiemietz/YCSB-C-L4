@@ -4,7 +4,7 @@
 //
 //  Created by Jinglei Ren on 12/19/14.
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
-//  Copyright (c) 2022 Viktor Reusch.
+//  Copyright (c) 2022, 2023 Viktor Reusch and Till Miemietz.
 //
 
 #include <cstring>
@@ -22,6 +22,19 @@
 #include "utils.h"
 
 using namespace std;
+
+/*
+ * For clarification, save the type of memory allocator used in this benchmark.
+ * We can use compile time config definitions to acquire the type of allocator
+ * this binary was linked against.
+ */
+#if defined(CONFIG_YCSB_MALLOC_TLSF)
+const string MALLOC_IMPL = "TLSF";
+#elif defined(CONFIG_YCSB_MALLOC_JEMALLOC)
+const string MALLOC_IMPL = "jemalloc";
+#else
+const string MALLOC_IMPL = "system standard allocator";
+#endif
 
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
@@ -50,6 +63,11 @@ static int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl,
 int main(const int argc, const char *argv[]) {
   utils::Properties props;
   string file_name = ParseCommandLine(argc, argv, props);
+
+  cout << "Starting YCSB benchmark..." << endl << endl;
+  cout << "Using allocator " << MALLOC_IMPL 
+       << " (info is reliable only on L4, beware of DB using another allocator)"
+       << endl;
 
   ycsbc::DB *db = ycsbc::DBFactory::CreateDB(props);
   if (!db) {
@@ -111,6 +129,7 @@ int main(const int argc, const char *argv[]) {
     assert(n.valid());
     sum += n.get();
   }
+  cerr << endl;
   cerr << "# Loading records:\t" << sum << endl;
 
   // Peforms transactions
