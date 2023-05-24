@@ -57,6 +57,7 @@ int main(const int argc, const char *argv[]) {
     exit(0);
   }
 
+  cout << "Benchmarking DB: " << props["dbname"] << endl;
   ycsbc::CoreWorkload wl;
   wl.Init(props);
 
