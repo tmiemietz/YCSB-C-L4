@@ -1,0 +1,15 @@
+menu "YCSB-C-L4"
+
+choice YCSB_MALLOC_BACKEND
+    prompt "Malloc backend used for benchmark"
+    default YCSB_MALLOC_STANDARD
+
+    config YCSB_MALLOC_STANDARD
+        bool "L4Re standard (uclibc)"
+    config YCSB_MALLOC_TLSF
+        bool "TLSF"
+    config YCSB_MALLOC_JEMALLOC
+        bool "jemalloc"
+endchoice
+
+endmenu

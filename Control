@@ -1,2 +1,2 @@
-requires: libstdc++ libsupc++ sqlite
+requires: libc_be_mem_tlsf libjemalloc libstdc++ libsupc++ sqlite
 Maintainer till.miemietz@barkhauseninstitut.org

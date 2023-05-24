@@ -1,7 +1,16 @@
 PKGDIR			?= ../../..
 L4DIR			?= $(PKGDIR)/../..
 
-REQUIRES_LIBS   = libstdc++ libsupc++
+# Choose malloc backend according to configuration
+ifeq ($(CONFIG_YCSB_MALLOC_TLSF),y)
+REQUIRES_LIBS = libc_be_mem_tlsf
+else ifeq ($(CONFIG_YCSB_MALLOC_JEMALLOC),y)
+REQUIRES_LIBS = jemalloc
+else
+REQUIRES_LIBS :=
+endif
+
+REQUIRES_LIBS   += libstdc++ libsupc++
 
 TARGET			= libycsbc_serializer.a
 PRIVATE_INCDIR  = $(PKGDIR)/server/include

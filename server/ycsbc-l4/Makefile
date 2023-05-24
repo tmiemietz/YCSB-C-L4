@@ -3,10 +3,19 @@ L4DIR		?= $(PKGDIR)/../..
 
 TARGET		= ycsbc-l4 
 
+# Choose malloc backend according to configuration
+ifeq ($(CONFIG_YCSB_MALLOC_TLSF),y)
+REQUIRES_LIBS := libc_be_mem_tlsf
+else ifeq ($(CONFIG_YCSB_MALLOC_JEMALLOC),y)
+REQUIRES_LIBS := jemalloc
+else
+REQUIRES_LIBS :=
+endif
+
 # libc_support_misc is needed for a dummy implementation of getpid and calls
 # alike, which is in turn needed for linking the ycsbc-l4 object files
 # against libsqlite3.a
-REQUIRES_LIBS = libstdc++ libsupc++ sqlite libc_support_misc
+REQUIRES_LIBS += libstdc++ libsupc++ sqlite libc_support_misc
 
 # Apparently, we need to define __STDC_LIMIT_MACROS to get all definitions from
 # stdint.h, see also https://stackoverflow.com/questions/25561677/intmax-max-was-not-declared-in-this-scope?noredirect=1&lq=1
