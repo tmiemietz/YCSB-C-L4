@@ -64,7 +64,8 @@ int main(const int argc, const char *argv[]) {
   utils::Properties props;
   string file_name = ParseCommandLine(argc, argv, props);
 
-  cout << "Starting YCSB benchmark..." << endl << endl;
+  cout << "Starting YCSB benchmark..." << endl;
+  cout << "==========================" << endl << endl;
   cout << "Using allocator " << MALLOC_IMPL 
        << " (info is reliable only on L4, beware of DB using another allocator)"
        << endl;
