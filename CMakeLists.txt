@@ -10,6 +10,14 @@ project(YCSB-C)
 # SQLite needs to be installed.
 find_package(SQLite3 REQUIRED)
 
+# Set build type to release by default
+if (NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+# Make Release build type use L4's settings
+set(CMAKE_BUILD_TYPE_RELEASE "-O2 -fomit-frame-pointer -fPIE")
+
 # This only supports the lib variant of the SQLite benchmarks.
 add_executable(ycsb
     server/ycsbc-l4/ycsbc-l4.cc server/ycsbc-l4/core/core_workload.cc
