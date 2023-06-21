@@ -35,15 +35,32 @@ namespace ycsbc {
 
 #ifdef NO_L4
 
+#include <sys/sysinfo.h>                // Get number of online processors
+#include <pthread.h>
+
 // Return a vector with an ascending list of the identifiers of all online CPUS.
 static inline std::vector<l4_umword_t> online_cpus() {
-  // FIXME: Implement listing CPUs.
-  return std::vector{static_cast<l4_umword_t>(0)};
+  // Mind that this way of determining the number of online CPUs is 
+  // Linux-specific!
+  std::vector<l4_umword_t> cpus = std::vector<l4_umword_t>{};
+
+  for (unsigned long i = 0; i < get_nprocs(); i++) 
+    cpus.push_back(i);
+
+  return cpus;
 }
 
 // Migrate this pthread thread to the specified CPU.
 static inline void migrate(l4_umword_t cpu) {
-  // FIXME: Implement migration.
+  cpu_set_t cpuset;
+
+  /* Set affinity mask exactly to the cpu number provided in the arguments  */
+  CPU_ZERO(&cpuset);
+  CPU_SET(cpu, &cpuset);
+
+  if (pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset) != 0) {
+    std::cerr << "Warning: Failed to set CPU affinity!" << std::endl;
+  }
 }
 
 #else // !NO_L4
