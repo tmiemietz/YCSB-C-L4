@@ -5,11 +5,11 @@ TARGET		= ycsbc-l4
 
 # Choose malloc backend according to configuration
 ifeq ($(CONFIG_YCSB_MALLOC_TLSF),y)
-REQUIRES_LIBS := libc_be_mem_tlsf
+REQUIRES_LIBS += libc_be_mem_tlsf
 else ifeq ($(CONFIG_YCSB_MALLOC_JEMALLOC),y)
-REQUIRES_LIBS := jemalloc
+REQUIRES_LIBS += jemalloc
 else
-REQUIRES_LIBS :=
+REQUIRES_LIBS +=
 endif
 
 # libc_support_misc is needed for a dummy implementation of getpid and calls
