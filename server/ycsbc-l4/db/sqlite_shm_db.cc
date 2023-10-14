@@ -58,7 +58,7 @@ struct IpcCltCtx {
   IpcCltCtx &operator=(IpcCltCtx &&) = delete;
 
   Serializer serializer() const {
-    return std::move(Serializer{ds_in_addr + 1, YCSBC_DS_SIZE - 1});
+    return Serializer{ds_in_addr + 1, YCSBC_DS_SIZE - 1};
   }
 
   // Sends the message to the other side and waits for a response.
@@ -75,7 +75,7 @@ struct IpcCltCtx {
     // Reset notification byte.
     *ds_out_addr = 0;
 
-    return std::move(Deserializer{ds_out_addr + 1});
+    return Deserializer{ds_out_addr + 1};
   }
 
   static IpcCltCtx &cast(void *ctx) {
@@ -179,7 +179,7 @@ int SqliteShmDB::Read(void *ctx_, const string &table, const string &key,
   auto &ctx = IpcCltCtx::cast(ctx_);
 
   // Serialize everything into the input dataspace
-  Serializer s = std::move(ctx.serializer());
+  Serializer s = ctx.serializer();
   s << table;
   s << key;
   // We must transfer anything at all, even if it is just an empty vector
@@ -189,7 +189,7 @@ int SqliteShmDB::Read(void *ctx_, const string &table, const string &key,
     s << std::vector<std::string>(0);
 
   // Call the server
-  Deserializer d = std::move(ctx.call('r'));
+  Deserializer d = ctx.call('r');
 
   // Deserialize the operation results
   d >> result;
@@ -206,7 +206,7 @@ int SqliteShmDB::Scan(void *ctx_, const string &table, const string &key,
   auto &ctx = IpcCltCtx::cast(ctx_);
 
   // Serialize everything into the input dataspace
-  Serializer s = std::move(ctx.serializer());
+  Serializer s = ctx.serializer();
   s << table;
   s << key;
   s << len;
@@ -217,7 +217,7 @@ int SqliteShmDB::Scan(void *ctx_, const string &table, const string &key,
     s << std::vector<std::string>(0);
 
   // Call the server
-  Deserializer d = std::move(ctx.call('s'));
+  Deserializer d = ctx.call('s');
 
   // Deserialize the operation results
   d >> result;
@@ -233,7 +233,7 @@ int SqliteShmDB::Update(void *ctx_, const string &table, const string &key,
   auto &ctx = IpcCltCtx::cast(ctx_);
 
   // Serialize everything into the input dataspace
-  Serializer s = std::move(ctx.serializer());
+  Serializer s = ctx.serializer();
   s << table;
   s << key;
   s << values;
@@ -249,7 +249,7 @@ int SqliteShmDB::Insert(void *ctx_, const string &table, const string &key,
   auto &ctx = IpcCltCtx::cast(ctx_);
 
   // Serialize everything into the input dataspace
-  Serializer s = std::move(ctx.serializer());
+  Serializer s = ctx.serializer();
   s << table;
   s << key;
   s << values;
@@ -264,7 +264,7 @@ int SqliteShmDB::Delete(void *ctx_, const string &table, const string &key) {
   auto &ctx = IpcCltCtx::cast(ctx_);
 
   // Serialize everything into the input dataspace
-  Serializer s = std::move(ctx.serializer());
+  Serializer s = ctx.serializer();
   s << table;
   s << key;
 
