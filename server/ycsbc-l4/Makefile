@@ -6,8 +6,10 @@ TARGET		= ycsbc-l4
 # Choose malloc backend according to configuration
 ifeq ($(CONFIG_YCSB_MALLOC_TLSF),y)
 REQUIRES_LIBS += libc_be_mem_tlsf
+DEFINES       += -DYCSB_MALLOC_TLSF
 else ifeq ($(CONFIG_YCSB_MALLOC_JEMALLOC),y)
 REQUIRES_LIBS += jemalloc
+DEFINES       += -DYCSB_MALLOC_JEMALLOC
 else
 REQUIRES_LIBS +=
 endif

@@ -28,9 +28,9 @@ using namespace std;
  * We can use compile time config definitions to acquire the type of allocator
  * this binary was linked against.
  */
-#if defined(CONFIG_YCSB_MALLOC_TLSF)
+#if defined(YCSB_MALLOC_TLSF)
 const string MALLOC_IMPL = "TLSF";
-#elif defined(CONFIG_YCSB_MALLOC_JEMALLOC)
+#elif defined(YCSB_MALLOC_JEMALLOC)
 const string MALLOC_IMPL = "jemalloc";
 #else
 const string MALLOC_IMPL = "system standard allocator";
