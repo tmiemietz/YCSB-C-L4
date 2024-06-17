@@ -1,6 +1,6 @@
 menu "YCSB-C-L4"
 
-choice YCSB_MALLOC_BACKEND
+choice
     prompt "Malloc backend used for benchmark"
     default YCSB_MALLOC_STANDARD
 
